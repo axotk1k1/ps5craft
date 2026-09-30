@@ -1,55 +1,162 @@
-# PS5Craft 1.0.0
+# PS5Craft
 
 **PS5Craft — PS5 Game Package Tool**
 
-Modern Windows WPF frontend for PS5 FPKG inspection/extraction and MkPFS compression.
+Программа для Windows, которая помогает работать с игровыми пакетами PS5: посмотреть информацию, распаковать `.fpkg` / `.pkg` и упаковать папку игры обратно в образ `.ffpfsc` / `.ffpfs`.
 
-## Workflow
+Интерфейс на русском. Тяжёлая работа выполняется во внешних инструментах (`fpkg-cli`, MkPFS), поэтому окно программы не зависает.
+
+---
+
+## Что умеет программа
+
+### 1. Распаковка
+- Открыть пакет `.fpkg` или `.pkg`
+- Выбрать папку для результата
+- Запустить распаковку одной кнопкой
+- Следить за прогрессом, скоростью и логом
+- Отменить операцию в любой момент
+
+### 2. Информация об игре
+После выбора пакета программа показывает:
+- название и Title ID
+- регион и тип пакета
+- версию, SDK, прошивку
+- языки
+- обложку (если есть в пакете)
+- можно ли этот пакет распаковать
+
+### 3. Упаковка
+- Выбрать уже распакованную папку игры
+- Указать выходной файл
+- Собрать образ:
+  - **FFPFSC** — рекомендуется (со сжатием)
+  - **FFPFS** — без сжатия блоков (`--raw`, с предупреждением)
+- Настроить CPU, приоритет процесса и уровень сжатия
+- При желании проверить образ после сборки
+
+### 4. Настройки и инструменты
+- Пути к инструментам (обычно находятся автоматически)
+- Число потоков CPU
+- Приоритет процесса (по умолчанию Below Normal)
+- Временная папка
+- Проверка после сжатия / распаковки
+- Просмотр и сохранение лога
+
+### 5. Автообновление
+- Проверка новых версий через [GitHub Releases](https://github.com/axotk1k1/ps5craft/releases)
+- Уведомление, если доступна более новая версия
+- Загрузка и установка обновления без ручной переустановки
+
+---
+
+## Как это работает
 
 ```text
-.fpkg / .pkg  →  fpkg-cli (inspect / extract)  →  game folder  →  mkpfs CLI  →  .ffpfsc / .ffpfs
+.fpkg / .pkg
+      │
+      ▼
+  Распаковка (fpkg-cli)
+      │
+      ▼
+  Папка игры
+      │
+      ▼
+  Упаковка (MkPFS)
+      │
+      ▼
+  .ffpfsc / .ffpfs
 ```
 
-Heavy work runs in **external processes**. The WPF UI stays responsive.
+| Этап | Инструмент | Результат |
+|------|------------|-----------|
+| Информация / распаковка | `fpkg-cli` | папка с файлами игры |
+| Упаковка | MkPFS CLI | образ `.ffpfsc` или `.ffpfs` |
 
-## Requirements
+---
 
-- Windows x64
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [MkPFS](https://github.com/PSBrew/MkPFS): `python -m pip install -U mkpfs` (or place `mkpfs` on PATH / in Settings)
-- Bundled `tools/fpkg/fpkg-cli` (built from [PSVIETHOA-FPKG-Builder](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder))
+## Как скачать и запустить
 
-## Run
+1. Откройте [Releases](https://github.com/axotk1k1/ps5craft/releases).
+2. Скачайте **`PS5Craft-win-x64.zip`**.
+3. Распакуйте архив в любую папку.
+4. Запустите **`PS5Craft.exe`**.
+
+Программу можно держать как portable: установка в Program Files не обязательна.
+
+---
+
+## Системные требования
+
+- Windows 10 / 11 (x64)
+- Для сборки из исходников: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Готовый релиз из GitHub уже содержит нужные runtime-файлы (self-contained)
+
+В релизном пакете должны быть:
+- `PS5Craft.exe`
+- `PS5Craft.Updater.exe`
+- `tools/fpkg/` — распаковка
+- `tools/mkpfs/` — упаковка
+
+---
+
+## Быстрый старт в программе
+
+1. Откройте вкладку **Распаковка**.
+2. Выберите файл `.fpkg` / `.pkg` и папку вывода.
+3. Нажмите **Распаковать**.
+4. На вкладке **Информация** проверьте метаданные.
+5. На вкладке **Упаковка** укажите папку игры и путь к `.ffpfsc`.
+6. Нажмите **Упаковать**.
+
+Лог внизу окна показывает все шаги и ошибки.
+
+---
+
+## Сборка из исходников
 
 ```powershell
 dotnet build PS5Craft.slnx -c Release
-dotnet publish src/PS5Craft.App/PS5Craft.App.csproj -c Release -r win-x64 -o publish/win-x64
+dotnet publish src/PS5Craft.App/PS5Craft.App.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 .\publish\win-x64\PS5Craft.exe
 ```
 
-Or from the IDE: set `PS5Craft.App` as startup project.
+Сборка встроенного MkPFS (если ещё нет `tools/mkpfs`):
 
-## Features
+```powershell
+.\scripts\build-mkpfs.ps1
+```
 
-- Dark PS5-inspired UI (Russian labels)
-- Package metadata + cover via PSVIETHOA `PackageInspector`
-- Extraction via `fpkg-cli pkg-extract` (separate process, cancellable)
-- Packing via `mkpfs pack folder` with **FFPFSC** (default) or **FFPFS** (`--raw` + warning)
-- CPU count, process priority (default Below Normal), compression level, block size
-- Live progress / log / resource monitor
-- Settings under `%LOCALAPPDATA%\PS5Craft\`
+Первый GitHub Release:
 
-## Solution layout
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
 
-| Project | Role |
-|---------|------|
-| `PS5Craft.App` | WPF shell + DI |
-| `PS5Craft.ViewModels` | MVVM (CommunityToolkit) |
-| `PS5Craft.Services` | FPKG / MkPFS / metadata |
-| `PS5Craft.Infrastructure` | Process runner, settings, log, monitor |
-| `PS5Craft.Core` | Models + contracts |
-| `PS5Craft.Tests` | Unit tests |
+После push тега GitHub Actions соберёт `PS5Craft-win-x64.zip` и `.sha256`.
 
-## Legal
+---
 
-See `THIRD-PARTY-NOTICES.txt`. No Sony keys. Retail packages that require a supplied image key are refused. Intended for homebrew / debug-enabled workflows with user-provided files.
+## Структура решения
+
+| Проект | Назначение |
+|--------|------------|
+| `PS5Craft.App` | Окно WPF, диалоги, DI |
+| `PS5Craft.ViewModels` | Логика интерфейса (MVVM) |
+| `PS5Craft.Services` | FPKG, MkPFS, метаданные, обновления |
+| `PS5Craft.Infrastructure` | Процессы, настройки, лог, монитор |
+| `PS5Craft.Core` | Модели и интерфейсы |
+| `PS5Craft.Updater` | Установщик обновлений |
+| `PS5Craft.Tests` | Автотесты |
+
+---
+
+## Важно
+
+- PS5Craft **не содержит** ключей Sony и **не обходит** DRM.
+- Retail-пакеты, которым нужен image key, без ключа пользователя не распаковываются.
+- PlayStation и PS5 — товарные знаки Sony Interactive Entertainment; проект с ними не связан.
+- Лицензии сторонних компонентов: [`THIRD-PARTY-NOTICES.txt`](THIRD-PARTY-NOTICES.txt)
+
+Используется для работы с **вашими** файлами в сценариях homebrew / debug.
