@@ -1,0 +1,32 @@
+## PS5Craft
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.nupkg
+publish/
+logs/
+temp/
+AppData/
+*.fpkg
+*.pkg
+*.ffpfs
+*.ffpfsc
+*.exfat
+*.ffpkg
+
+# Local research clones (do not commit)
+_refs/
+
+# Local tool installs
+tools/mkpfs/
+tools/fpkg/
+
+# OS / IDE
+Thumbs.db
+Desktop.ini
+.idea/
+
+_shots/
+_build/

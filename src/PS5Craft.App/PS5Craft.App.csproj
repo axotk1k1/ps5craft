@@ -1,0 +1,81 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>PS5Craft</AssemblyName>
+    <RootNamespace>PS5Craft.App</RootNamespace>
+    <Product>PS5Craft — PS5 Game Package Tool</Product>
+    <Authors>PS5Craft</Authors>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PS5Craft.ViewModels\PS5Craft.ViewModels.csproj" />
+    <ProjectReference Include="..\PS5Craft.Services\PS5Craft.Services.csproj" />
+    <ProjectReference Include="..\PS5Craft.Infrastructure\PS5Craft.Infrastructure.csproj" />
+    <ProjectReference Include="..\PS5Craft.Core\PS5Craft.Core.csproj" />
+    <ProjectReference Include="..\PS5Craft.Updater\PS5Craft.Updater.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ToolsRoot>$(MSBuildThisFileDirectory)..\..\tools\</ToolsRoot>
+    <UpdaterOutDir>$(MSBuildThisFileDirectory)..\PS5Craft.Updater\bin\$(Configuration)\net10.0\</UpdaterOutDir>
+  </PropertyGroup>
+  <Target Name="CopyTools" AfterTargets="Build">
+    <ItemGroup>
+      <FpkgToolFiles Include="$(ToolsRoot)fpkg\**\*.*" />
+      <MkPfsToolFiles Include="$(ToolsRoot)mkpfs\**\*.*" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.exe"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.exe')" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.dll"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.dll')" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.deps.json"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.deps.json')" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.runtimeconfig.json"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.runtimeconfig.json')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FpkgToolFiles)"
+          DestinationFiles="@(FpkgToolFiles->'$(OutDir)tools\fpkg\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(ToolsRoot)fpkg\fpkg-cli.exe')" />
+    <Copy SourceFiles="@(MkPfsToolFiles)"
+          DestinationFiles="@(MkPfsToolFiles->'$(OutDir)tools\mkpfs\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(ToolsRoot)mkpfs\mkpfs.exe')" />
+    <Copy SourceFiles="@(UpdaterFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"
+          Condition="'@(UpdaterFiles)' != ''" />
+  </Target>
+  <Target Name="CopyToolsOnPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <FpkgToolFiles Include="$(ToolsRoot)fpkg\**\*.*" />
+      <MkPfsToolFiles Include="$(ToolsRoot)mkpfs\**\*.*" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.exe"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.exe')" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.dll"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.dll')" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.deps.json"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.deps.json')" />
+      <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.runtimeconfig.json"
+                    Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.runtimeconfig.json')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FpkgToolFiles)"
+          DestinationFiles="@(FpkgToolFiles->'$(PublishDir)tools\fpkg\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(ToolsRoot)fpkg\fpkg-cli.exe')" />
+    <Copy SourceFiles="@(MkPfsToolFiles)"
+          DestinationFiles="@(MkPfsToolFiles->'$(PublishDir)tools\mkpfs\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(ToolsRoot)mkpfs\mkpfs.exe')" />
+    <Copy SourceFiles="@(UpdaterFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true"
+          Condition="'@(UpdaterFiles)' != ''" />
+  </Target>
+  <ItemGroup>
+    <Resource Include="Assets\logo-cube.png" />
+    <Resource Include="Assets\ps5-console.png" />
+    <Resource Include="Assets\ps5icon.png" />
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+</Project>

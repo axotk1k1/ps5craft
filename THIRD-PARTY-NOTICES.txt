@@ -1,0 +1,48 @@
+# Third-Party Notices
+
+PS5Craft redistributes or interoperates with the following software. Preserve their licenses.
+
+---
+
+## PSVIETHOA FPKG Builder / fpkg-cli
+
+- Project: https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder
+- Authors: PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương
+- Engine credit: Drakmor (LibProsperoPkg)
+- Use in PS5Craft:
+  - `fpkg-cli` as an external process for `pkg-extract` / `verify`
+  - `PsViethoa.FpkgBuilder.Core` / `PackageInspector` for metadata + icon inspect
+
+Consult the upstream repository for the full license text shipped with that project.
+
+---
+
+## LibProsperoPkg
+
+- Project: https://github.com/SvenGDK/LibProsperoPKG (and Drakmor builds bundled with fpkg-gui / PSVIETHOA)
+- License: GNU General Public License v3.0 (see upstream NOTICE)
+- Bundled binary: `libs/LibProsperoPkg.dll` and `tools/fpkg/LibProsperoPkg.dll`
+- Security boundary: retail packages requiring a supplied image key are refused unless the user provides that key. No proprietary Sony keys are bundled.
+
+---
+
+## MkPFS
+
+- Project: https://github.com/PSBrew/MkPFS
+- License: GNU General Public License v3.0
+- Use in PS5Craft: invoked only as an external CLI (`mkpfs` / `python -m mkpfs`). The MkPFS GUI is not used.
+- Bundled binary: `tools/mkpfs/mkpfs.exe` — unmodified MkPFS 1.0.0 CLI (source commit 78eda0a) frozen with PyInstaller
+  together with the Python runtime and its dependencies (cryptography, zlib-ng, isal). The license text is shipped as
+  `tools/mkpfs/LICENSE-MkPFS.txt`. Corresponding source: https://github.com/PSBrew/MkPFS; the exact build recipe is
+  `scripts/build-mkpfs.ps1`.
+
+---
+
+## CommunityToolkit.Mvvm / Microsoft.Extensions.DependencyInjection / Magick.NET / DokanNet / BCnEncoder.Net
+
+- Restored via NuGet with their respective MIT / Apache / LGPL package licenses.
+- Magick.NET and DokanNet are transitive dependencies of PsViethoa.FpkgBuilder.Core.
+
+---
+
+Additional license texts are available in NuGet package folders after restore and in the upstream repositories listed above.

@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PS5Craft.Services</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PS5Craft.Core\PS5Craft.Core.csproj" />
+    <ProjectReference Include="..\PS5Craft.Infrastructure\PS5Craft.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\_refs\PSVIETHOA-FPKG-Builder\src\PsViethoa.FpkgBuilder.Core\PsViethoa.FpkgBuilder.Core.csproj" />
+  </ItemGroup>
+</Project>

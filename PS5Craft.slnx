@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PS5Craft.App/PS5Craft.App.csproj" />
+    <Project Path="src/PS5Craft.Core/PS5Craft.Core.csproj" />
+    <Project Path="src/PS5Craft.Infrastructure/PS5Craft.Infrastructure.csproj" />
+    <Project Path="src/PS5Craft.Services/PS5Craft.Services.csproj" />
+    <Project Path="src/PS5Craft.ViewModels/PS5Craft.ViewModels.csproj" />
+    <Project Path="src/PS5Craft.Updater/PS5Craft.Updater.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PS5Craft.Tests/PS5Craft.Tests.csproj" />
+  </Folder>
+</Solution>

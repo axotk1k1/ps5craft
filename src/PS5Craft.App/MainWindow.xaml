@@ -1,0 +1,886 @@
+﻿<Window x:Class="PS5Craft.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:PS5Craft.App.Controls"
+        Title="PS5Craft v1.0 — PS5 Game Package Tool"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Width="1536" Height="1024"
+        MinWidth="1200" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None" ResizeMode="CanResize"
+        AllowDrop="True"
+        FontFamily="Segoe UI" Foreground="White"
+        Background="{StaticResource BrushWindowBg}">
+  <WindowChrome.WindowChrome>
+    <WindowChrome x:Name="Chrome" CaptionHeight="84" ResizeBorderThickness="6" GlassFrameThickness="0"
+                  CornerRadius="0" UseAeroCaptionButtons="False" />
+  </WindowChrome.WindowChrome>
+
+  <Window.Resources>
+    <GridLength x:Key="MetaLabelWidth">185</GridLength>
+    <Style x:Key="LabelCell" TargetType="Border">
+      <Setter Property="Background" Value="#081727" />
+      <Setter Property="BorderBrush" Value="#12304A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="Margin" Value="0,0,3,3" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+    <Style x:Key="ValueCell" TargetType="Border">
+      <Setter Property="Background" Value="#0C2036" />
+      <Setter Property="BorderBrush" Value="#12304A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="Margin" Value="0,0,0,3" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- Vector app logo: glowing blue cube -->
+    <Canvas x:Key="LogoCube" x:Shared="False" Width="64" Height="64">
+      <Ellipse Canvas.Left="6" Canvas.Top="8" Width="52" Height="52" Fill="#1E8CFF" Opacity="0.35">
+        <Ellipse.Effect>
+          <BlurEffect Radius="14" />
+        </Ellipse.Effect>
+      </Ellipse>
+      <Path Data="M32,5 L57,18 L32,31 L7,18 Z">
+        <Path.Fill>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#9ADBFF" Offset="0" />
+            <GradientStop Color="#2C98FF" Offset="1" />
+          </LinearGradientBrush>
+        </Path.Fill>
+      </Path>
+      <Path Data="M7,18 L32,31 L32,59 L7,46 Z">
+        <Path.Fill>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#1682F5" Offset="0" />
+            <GradientStop Color="#0A4DB0" Offset="1" />
+          </LinearGradientBrush>
+        </Path.Fill>
+      </Path>
+      <Path Data="M57,18 L57,46 L32,59 L32,31 Z">
+        <Path.Fill>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#0B5CC4" Offset="0" />
+            <GradientStop Color="#062D6E" Offset="1" />
+          </LinearGradientBrush>
+        </Path.Fill>
+      </Path>
+      <Path Data="M32,5 L57,18 L57,46 L32,59 L7,46 L7,18 Z M7,18 L32,31 L57,18 M32,31 L32,59"
+            Stroke="#B8E6FF" StrokeThickness="1.4" StrokeLineJoin="Round" />
+    </Canvas>
+  </Window.Resources>
+
+  <Border x:Name="RootBorder">
+    <Grid x:Name="Root">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="84" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="280" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Sidebar background (spans header row so the brand block sits on it) -->
+      <Border Grid.RowSpan="2" Grid.Column="0" BorderBrush="#0F2A44" BorderThickness="0,0,1,0">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#07182A" Offset="0" />
+            <GradientStop Color="#06121F" Offset="0.6" />
+            <GradientStop Color="#081B30" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+
+      <!-- ================= HEADER ================= -->
+      <Grid Grid.Row="0" Grid.ColumnSpan="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Center">
+          <Viewbox Width="60" Height="60">
+            <ContentControl Content="{StaticResource LogoCube}" />
+          </Viewbox>
+          <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock FontSize="31" FontWeight="Bold" VerticalAlignment="Bottom">
+                <Run Text="PS5" Foreground="White" /><Run Text="Craft" Foreground="#1E90FF" />
+              </TextBlock>
+              <TextBlock Text="{Binding AppVersionShortDisplay}" FontSize="17" Foreground="#D7E2EE" VerticalAlignment="Bottom" Margin="10,0,0,6" />
+            </StackPanel>
+            <TextBlock Text="PS5 Game Package Tool" FontSize="14" Foreground="#C9D5E2" Margin="1,-3,0,0" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+          <Button Style="{StaticResource HeaderLinkButton}" Command="{Binding OpenUpdateDialogCommand}"
+                  Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolVis}}" Margin="0,0,8,0"
+                  ToolTip="Доступно обновление">
+            <StackPanel Orientation="Horizontal">
+              <Ellipse Width="8" Height="8" Fill="#4DB0FF" Margin="0,0,8,0" VerticalAlignment="Center" />
+              <TextBlock Text="Доступно обновление" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource HeaderLinkButton}" Command="{Binding NavigateCommand}" CommandParameter="settings">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="17" VerticalAlignment="Center" Margin="0,0,9,0" />
+              <TextBlock Text="Настройки" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource HeaderLinkButton}" Command="{Binding NavigateCommand}" CommandParameter="about" Margin="4,0,0,0">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE946;" FontFamily="{StaticResource IconFont}" FontSize="17" VerticalAlignment="Center" Margin="0,0,9,0" />
+              <TextBlock Text="О программе" FontSize="14" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Rectangle Width="1" Height="30" Fill="#1D3C5C" Margin="18,0,12,0" />
+          <Button Style="{StaticResource ChromeButton}" Content="&#xE921;" Click="OnMinimize" ToolTip="Свернуть" />
+          <Button x:Name="MaxButton" Style="{StaticResource ChromeButton}" Content="&#xE922;" Click="OnMaximize" ToolTip="Развернуть" />
+          <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" Click="OnClose" ToolTip="Закрыть" />
+        </StackPanel>
+      </Grid>
+
+      <!-- ================= SIDEBAR ================= -->
+      <Grid Grid.Row="1" Grid.Column="0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,6,0,0">
+          <RadioButton Style="{StaticResource NavCard}" Command="{Binding NavigateCommand}" CommandParameter="extract"
+                       IsChecked="{Binding CurrentPage, Mode=OneWay, Converter={StaticResource PageIs}, ConverterParameter=Extract}">
+            <StackPanel Orientation="Horizontal">
+              <Path Style="{StaticResource NavIcon}" Data="{StaticResource IconOpenBox}" Fill="#33FFFFFF" />
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Распаковка" Style="{StaticResource NavTitle}" />
+                <TextBlock Text=".fpkg → Папка" Style="{StaticResource NavSubtitle}" />
+              </StackPanel>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton Style="{StaticResource NavCard}" Command="{Binding NavigateCommand}" CommandParameter="pack"
+                       IsChecked="{Binding CurrentPage, Mode=OneWay, Converter={StaticResource PageIs}, ConverterParameter=Pack}">
+            <StackPanel Orientation="Horizontal">
+              <Path Style="{StaticResource NavIcon}" Data="{StaticResource IconCube}" />
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Упаковка" Style="{StaticResource NavTitle}" />
+                <TextBlock Text="Папка → .ffpfs" Style="{StaticResource NavSubtitle}" />
+              </StackPanel>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton Style="{StaticResource NavCard}" Command="{Binding NavigateCommand}" CommandParameter="info"
+                       IsChecked="{Binding CurrentPage, Mode=OneWay, Converter={StaticResource PageIs}, ConverterParameter=Info}">
+            <StackPanel Orientation="Horizontal">
+              <Path Style="{StaticResource NavIcon}" Data="{StaticResource IconInfo}" StrokeThickness="2.1" />
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Информация" Style="{StaticResource NavTitle}" />
+                <TextBlock Text="Данные об игре" Style="{StaticResource NavSubtitle}" />
+              </StackPanel>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton Style="{StaticResource NavCard}" Command="{Binding NavigateCommand}" CommandParameter="tools"
+                       IsChecked="{Binding CurrentPage, Mode=OneWay, Converter={StaticResource PageIs}, ConverterParameter=Tools}">
+            <StackPanel Orientation="Horizontal">
+              <Path Style="{StaticResource NavIcon}" Data="{StaticResource IconWrench}" Fill="White" StrokeThickness="0.8" />
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Инструменты" Style="{StaticResource NavTitle}" />
+                <TextBlock Text="Дополнительно" Style="{StaticResource NavSubtitle}" />
+              </StackPanel>
+            </StackPanel>
+          </RadioButton>
+        </StackPanel>
+
+        <!-- Stylised console artwork (vector, not an official logo) -->
+        <Viewbox Grid.Row="1" Stretch="Uniform" VerticalAlignment="Bottom" Margin="18,10,18,6" MaxHeight="420">
+          <Canvas Width="240" Height="380">
+            <Ellipse Canvas.Left="20" Canvas.Top="60" Width="200" Height="280" Opacity="0.55">
+              <Ellipse.Fill>
+                <RadialGradientBrush>
+                  <GradientStop Color="#2A7DFF" Offset="0" />
+                  <GradientStop Color="#0B2A5C" Offset="0.55" />
+                  <GradientStop Color="#00061220" Offset="1" />
+                </RadialGradientBrush>
+              </Ellipse.Fill>
+            </Ellipse>
+            <!-- stand -->
+            <Ellipse Canvas.Left="44" Canvas.Top="340" Width="150" Height="22" Fill="#050A12" Stroke="#1A3B63" StrokeThickness="1" />
+            <Path Data="M92,336 L150,336 L156,346 L86,346 Z" Fill="#0A111C" />
+            <!-- black core -->
+            <Path Data="M104,34 L150,44 L150,330 L104,340 Z">
+              <Path.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                  <GradientStop Color="#05070C" Offset="0" />
+                  <GradientStop Color="#141A26" Offset="0.6" />
+                  <GradientStop Color="#0A0E16" Offset="1" />
+                </LinearGradientBrush>
+              </Path.Fill>
+            </Path>
+            <!-- blue light strip -->
+            <Path Data="M106,52 C100,140 100,240 106,322" Stroke="#3D9BFF" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+              <Path.Effect>
+                <DropShadowEffect Color="#2D8CFF" BlurRadius="16" ShadowDepth="0" Opacity="1" />
+              </Path.Effect>
+            </Path>
+            <!-- left white shell -->
+            <Path Data="M34,18 C70,6 100,18 108,44 C98,130 98,240 108,326 C92,346 60,356 36,358 C22,250 20,120 34,18 Z">
+              <Path.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                  <GradientStop Color="#AEBBCB" Offset="0" />
+                  <GradientStop Color="#F4F7FB" Offset="0.45" />
+                  <GradientStop Color="#DDE4EE" Offset="0.8" />
+                  <GradientStop Color="#9FAABB" Offset="1" />
+                </LinearGradientBrush>
+              </Path.Fill>
+            </Path>
+            <Path Data="M42,32 C32,140 32,250 44,346" Stroke="#FFFFFF" StrokeThickness="1.2" Opacity="0.5" />
+            <!-- right shell -->
+            <Path Data="M150,44 C162,42 174,48 178,58 C172,150 172,240 176,316 C170,326 160,330 150,330 Z">
+              <Path.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                  <GradientStop Color="#8C98AA" Offset="0" />
+                  <GradientStop Color="#D5DDE7" Offset="0.5" />
+                  <GradientStop Color="#7E8A9C" Offset="1" />
+                </LinearGradientBrush>
+              </Path.Fill>
+            </Path>
+            <Path Data="M150,58 C146,150 146,240 150,316" Stroke="#2D7CFF" StrokeThickness="1.6" Opacity="0.8">
+              <Path.Effect>
+                <DropShadowEffect Color="#2D8CFF" BlurRadius="10" ShadowDepth="0" Opacity="0.9" />
+              </Path.Effect>
+            </Path>
+          </Canvas>
+        </Viewbox>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="24,0,0,22">
+          <Viewbox Width="40" Height="40" VerticalAlignment="Center">
+            <ContentControl Content="{StaticResource LogoCube}" />
+          </Viewbox>
+          <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+            <TextBlock FontSize="20" FontWeight="Bold">
+              <Run Text="PS5" /><Run Text="Craft" Foreground="#1E90FF" />
+            </TextBlock>
+            <TextBlock Text="PS5 Game Package Tool" FontSize="13" Foreground="{StaticResource BrushMuted}" />
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+
+      <!-- ================= CONTENT ================= -->
+      <Grid x:Name="ContentGrid" Grid.Row="1" Grid.Column="1" Margin="12,6,14,14">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- GAME INFORMATION: MaxHeight is set from code to the space left after the other panels -->
+        <Border x:Name="GameInfoPanel" Grid.Row="0" Style="{StaticResource Panel}" Padding="14,8,14,12"
+                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter='Extract,Pack,Info'}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition x:Name="GameInfoTitleRow" Height="34" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <TextBlock Text="Информация об игре" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+
+              <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Cover: scales down proportionally with the table height -->
+                <Viewbox Stretch="Uniform" StretchDirection="DownOnly" VerticalAlignment="Top" Margin="0,0,16,0"
+                         MaxHeight="{Binding ActualHeight, ElementName=MetaTable}">
+                  <Border Width="268" Height="349" BorderBrush="#2F8CFF" BorderThickness="1.5" CornerRadius="4"
+                          Background="#081626" ClipToBounds="True" Effect="{StaticResource SoftGlow}">
+                    <Grid>
+                      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Path Data="{StaticResource IconCube}" Stroke="#2A5780" StrokeThickness="1.5" Width="64" Height="64" Stretch="Uniform" StrokeLineJoin="Round" />
+                        <TextBlock Text="Нет обложки" Foreground="{StaticResource BrushMuted}" FontSize="13" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                      </StackPanel>
+                      <Image Source="{Binding CoverImage}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Grid>
+                  </Border>
+                </Viewbox>
+
+                <!-- Metadata table: one column, or two when the height is tight -->
+                <ctl:MetaTablePanel x:Name="MetaTable" Grid.Column="1" VerticalAlignment="Top" RowHeight="32" MinRowHeight="22">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Название:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding Game.Title}" Style="{StaticResource MetaValue}" ToolTip="{Binding Game.Title}" /></Border>
+                  </Grid>
+
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Код игры (Game ID):" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding Game.TitleId}" Style="{StaticResource MetaValue}" /></Border>
+                  </Grid>
+
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Регион:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}">
+                    <StackPanel Orientation="Horizontal">
+                      <Border Style="{StaticResource Badge}">
+                        <TextBlock Text="{Binding RegionCode}" FontSize="13" FontWeight="Bold" />
+                      </Border>
+                      <TextBlock Text="{Binding RegionName}" Style="{StaticResource MetaValue}" />
+                    </StackPanel>
+                  </Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Консоль:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}">
+                    <StackPanel Orientation="Horizontal">
+                      <Border Style="{StaticResource Badge}" Background="#F2F6FA">
+                        <TextBlock Text="{Binding ConsoleCode}" FontSize="13" FontWeight="Bold" Foreground="#0A2A55" />
+                      </Border>
+                      <TextBlock Text="{Binding ConsoleName}" Style="{StaticResource MetaValue}" />
+                    </StackPanel>
+                  </Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Версия:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding Game.Version}" Style="{StaticResource MetaValue}" /></Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Установленный размер:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding SizeDisplay}" Style="{StaticResource MetaValue}" /></Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Тип пакета:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding Game.PackageType}" Style="{StaticResource MetaValue}" /></Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Content ID:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding Game.ContentId}" Style="{StaticResource MetaValue}" /></Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="SDK Version:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding SdkDisplay}" Style="{StaticResource MetaValue}" /></Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Required FW:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}"><TextBlock Text="{Binding FirmwareDisplay}" Style="{StaticResource MetaValue}" /></Border>
+
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="{StaticResource MetaLabelWidth}" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource LabelCell}"><TextBlock Text="Языки:" Style="{StaticResource MetaLabel}" /></Border>
+                  <Border Grid.Column="1" Style="{StaticResource ValueCell}" ToolTip="{Binding LanguagesText}">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="—">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock" BasedOn="{StaticResource MetaValue}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding LanguagesText}" Value="—">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+                      <ItemsControl ItemsSource="{Binding LanguageChips}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Grid Margin="0,0,10,0" ToolTip="{Binding}">
+                              <Border Width="27" Height="18" CornerRadius="2" BorderBrush="#33FFFFFF" BorderThickness="0.5"
+                                      Background="{Binding Converter={StaticResource Flag}}" />
+                              <Border Width="27" Height="18" CornerRadius="2" Background="#16324F"
+                                      Visibility="{Binding Converter={StaticResource Flag}, ConverterParameter=vis}">
+                                <TextBlock Text="{Binding}" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                              </Border>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Border Background="#16324F" CornerRadius="4" Padding="7,1" VerticalAlignment="Center"
+                              Visibility="{Binding LanguagesOverflow, Converter={StaticResource NullVis}}">
+                        <TextBlock Text="{Binding LanguagesOverflow}" FontSize="13" FontWeight="SemiBold" />
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                  </Grid>
+                </ctl:MetaTablePanel>
+              </Grid>
+            </Grid>
+        </Border>
+
+          <!-- WORKFLOW + OPERATION CONTROLS -->
+          <Border x:Name="WorkflowPanel" Grid.Row="1" Style="{StaticResource Panel}" Margin="0,8,0,0"
+                  Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter='Extract,Pack,Info'}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition x:Name="StepperRow" Height="66" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <!-- Stepper -->
+              <Border BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" CornerRadius="10,10,0,0" ClipToBounds="True">
+                <Grid Margin="1,1,1,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <HeaderedContentControl Grid.Column="0" Style="{StaticResource StepSegment}" Header="1" Cursor="Hand"
+                                          Tag="{Binding WorkflowStep, Converter={StaticResource StepState}, ConverterParameter=1}">
+                    <HeaderedContentControl.InputBindings>
+                      <MouseBinding Gesture="LeftClick" Command="{Binding NavigateCommand}" CommandParameter="extract" />
+                    </HeaderedContentControl.InputBindings>
+                    <StackPanel>
+                      <TextBlock Text="Распаковка .fpkg" Style="{StaticResource StepTitle}" />
+                      <TextBlock Text="Выберите папку для распаковки" Style="{StaticResource StepSubtitle}" />
+                    </StackPanel>
+                  </HeaderedContentControl>
+                  <HeaderedContentControl Grid.Column="1" Style="{StaticResource StepSegment}" Header="2" Cursor="Hand"
+                                          Tag="{Binding WorkflowStep, Converter={StaticResource StepState}, ConverterParameter=2}">
+                    <HeaderedContentControl.InputBindings>
+                      <MouseBinding Gesture="LeftClick" Command="{Binding NavigateCommand}" CommandParameter="info" />
+                    </HeaderedContentControl.InputBindings>
+                    <StackPanel>
+                      <TextBlock Text="Просмотр / Редактирование" Style="{StaticResource StepTitle}" />
+                      <TextBlock Text="Файлы игры" Style="{StaticResource StepSubtitle}" />
+                    </StackPanel>
+                  </HeaderedContentControl>
+                  <HeaderedContentControl Grid.Column="2" Style="{StaticResource StepSegment}" Header="3" Cursor="Hand"
+                                          Tag="{Binding WorkflowStep, Converter={StaticResource StepState}, ConverterParameter=3}">
+                    <HeaderedContentControl.InputBindings>
+                      <MouseBinding Gesture="LeftClick" Command="{Binding NavigateCommand}" CommandParameter="pack" />
+                    </HeaderedContentControl.InputBindings>
+                    <StackPanel>
+                      <TextBlock Text="Упаковка в .ffpfs" Style="{StaticResource StepTitle}" />
+                      <TextBlock Text="Создание сжатого файла" Style="{StaticResource StepSubtitle}" />
+                    </StackPanel>
+                  </HeaderedContentControl>
+                </Grid>
+              </Border>
+
+              <!-- Extract controls -->
+              <Grid x:Name="ExtractControls" Grid.Row="1" Margin="16,12,16,12"
+                    Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Extract}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="130" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="34" />
+                  <RowDefinition Height="8" />
+                  <RowDefinition Height="34" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="Файл .fpkg:" Style="{StaticResource FieldLabel}" />
+                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackagePath, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackageCommand}" />
+
+                <TextBlock Grid.Row="2" Text="Папка вывода:" Style="{StaticResource FieldLabel}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding ExtractOutputFolder, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowseExtractOutputCommand}" />
+
+                <Button Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Style="{StaticResource PrimaryAction}" Margin="20,0,0,0"
+                        Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="ExtractButton" AutomationProperties.Name="Распаковать .fpkg">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource IconOpenBox}" Stroke="White" StrokeThickness="1.8" Fill="#33FFFFFF" Width="40" Height="40"
+                          Stretch="Uniform" StrokeLineJoin="Round" Margin="0,0,16,0" />
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="Распаковать .fpkg" FontSize="18" FontWeight="SemiBold" />
+                      <TextBlock Text="В выбранную папку" FontSize="13" Foreground="#D6E8FF" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+
+                <StackPanel Grid.Row="3" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,14,0,0">
+                  <CheckBox Content="Проверять файлы после распаковки" IsChecked="{Binding VerifyAfterExtract}" Margin="0,0,60,0" />
+                  <CheckBox Content="Извлечь обложку и метаданные" IsChecked="{Binding ExtractCoverAndMetadata}" />
+                </StackPanel>
+              </Grid>
+
+              <!-- Pack controls -->
+              <Grid x:Name="PackControls" Grid.Row="1" Margin="16,12,16,12"
+                    Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Pack}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="130" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="34" />
+                  <RowDefinition Height="8" />
+                  <RowDefinition Height="34" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="Папка игры:" Style="{StaticResource FieldLabel}" />
+                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackSourceFolder, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackSourceCommand}" />
+
+                <TextBlock Grid.Row="2" Text="Выходной файл:" Style="{StaticResource FieldLabel}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackOutputPath, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackOutputCommand}" />
+
+                <Button Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Style="{StaticResource PrimaryAction}" Margin="20,0,0,0"
+                        Command="{Binding PackCommand}" AutomationProperties.AutomationId="PackButton" AutomationProperties.Name="Упаковать образ">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource IconCube}" Stroke="White" StrokeThickness="1.8" Fill="#33FFFFFF" Width="40" Height="40"
+                          Stretch="Uniform" StrokeLineJoin="Round" Margin="0,0,16,0" />
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="Упаковать образ" FontSize="18" FontWeight="SemiBold" />
+                      <TextBlock FontSize="13" Foreground="#D6E8FF">
+                        <Run Text="MkPFS → " /><Run Text="{Binding SelectedOutputFormat, Mode=OneWay}" />
+                      </TextBlock>
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+
+                <StackPanel x:Name="PackCombos" Grid.Row="3" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,12,0,0">
+                  <TextBlock Text="Формат:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding OutputFormats}" SelectedItem="{Binding SelectedOutputFormat}" MinWidth="100" Margin="0,0,18,0" />
+                  <TextBlock Text="CPU:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding CpuOptions}" SelectedItem="{Binding SelectedCpu}" MinWidth="90" Margin="0,0,18,0" />
+                  <TextBlock Text="Сжатие:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding CompressionLevels}" SelectedItem="{Binding SelectedCompressionLevel}" MinWidth="70" Margin="0,0,18,0" />
+                  <TextBlock Text="Блок:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding BlockSizes}" SelectedItem="{Binding SelectedBlockSize}" MinWidth="90" Margin="0,0,18,0" />
+                  <TextBlock Text="Приоритет:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}" MinWidth="130" />
+                </StackPanel>
+
+                <WrapPanel x:Name="PackOptions" Grid.Row="4" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,12,0,0">
+                  <WrapPanel.Resources>
+                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                      <Setter Property="Margin" Value="0,0,24,0" />
+                    </Style>
+                  </WrapPanel.Resources>
+                  <CheckBox Content="Сжатие" IsChecked="{Binding CompressEnabled}" />
+                  <CheckBox Content="Не сжимать исполняемые файлы" IsChecked="{Binding SkipExecutableCompression}" />
+                  <CheckBox Content="Проверить после упаковки" IsChecked="{Binding VerifyAfterPack}" />
+                  <CheckBox Content="Подробный вывод" IsChecked="{Binding Verbose}" />
+                  <CheckBox Content="Пробный запуск" IsChecked="{Binding DryRun}" />
+                </WrapPanel>
+
+                <Border Grid.Row="5" Grid.ColumnSpan="4" Margin="0,10,0,0" Background="#2A2208" BorderBrush="#6B5211" BorderThickness="1"
+                        CornerRadius="6" Padding="10,6" Visibility="{Binding FormatWarning, Converter={StaticResource NullVis}}">
+                  <TextBlock Text="{Binding FormatWarning}" Foreground="{StaticResource BrushWarn}" TextWrapping="Wrap" FontSize="13" />
+                </Border>
+              </Grid>
+
+              <!-- Info controls -->
+              <Grid x:Name="InfoControls" Grid.Row="1" Margin="16,12,16,12"
+                    Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Info}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="130" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="34" />
+                  <RowDefinition Height="8" />
+                  <RowDefinition Height="34" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="Файл .fpkg:" Style="{StaticResource FieldLabel}" />
+                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackagePath, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackageCommand}" />
+
+                <TextBlock Grid.Row="2" Text="Папка игры:" Style="{StaticResource FieldLabel}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackSourceFolder, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackSourceCommand}" />
+
+                <Button Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Style="{StaticResource PrimaryAction}" Margin="20,0,0,0"
+                        Command="{Binding NavigateCommand}" CommandParameter="extract">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource IconOpenBox}" Stroke="White" StrokeThickness="1.8" Fill="#33FFFFFF" Width="40" Height="40"
+                          Stretch="Uniform" StrokeLineJoin="Round" Margin="0,0,16,0" />
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="К распаковке" FontSize="18" FontWeight="SemiBold" />
+                      <TextBlock Text="Шаг 1 — .fpkg → папка" FontSize="13" Foreground="#D6E8FF" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+
+                <StackPanel Grid.Row="3" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,14,0,0">
+                  <TextBlock Style="{StaticResource FieldLabel}" Margin="0,0,40,0">
+                    <Run Text="Размер файла: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding FileSizeDisplay, Mode=OneWay}" />
+                  </TextBlock>
+                  <TextBlock Style="{StaticResource FieldLabel}" Margin="0,0,40,0">
+                    <Run Text="Тип: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding Game.KindLabel, Mode=OneWay}" />
+                  </TextBlock>
+                  <TextBlock Style="{StaticResource FieldLabel}" TextTrimming="CharacterEllipsis" MaxWidth="560" ToolTip="{Binding ExtractAvailabilityText}">
+                    <Run Text="Распаковка: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding ExtractAvailabilityText, Mode=OneWay}" />
+                  </TextBlock>
+                </StackPanel>
+              </Grid>
+            </Grid>
+          </Border>
+
+          <!-- PROGRESS -->
+          <Border x:Name="ProgressPanel" Grid.Row="2" Style="{StaticResource Panel}" Margin="0,8,0,0" Padding="16,8,16,10"
+                  Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter='Extract,Pack,Info'}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition x:Name="ProgressTitleRow" Height="28" />
+                <RowDefinition Height="26" />
+                <RowDefinition x:Name="ProgressInfoRow" Height="24" />
+              </Grid.RowDefinitions>
+
+              <DockPanel Grid.Row="0" Grid.ColumnSpan="2" LastChildFill="False">
+                <TextBlock Text="{Binding ProgressTitle}" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Margin="18,0,0,0" FontSize="12.5" Foreground="{StaticResource BrushMuted}" VerticalAlignment="Center"
+                           Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}">
+                  <Run Text="CPU " /><Run Text="{Binding CpuText, Mode=OneWay}" Foreground="White" /><Run Text="   RAM " /><Run Text="{Binding RamText, Mode=OneWay}" Foreground="White" /><Run Text="   Прошло " /><Run Text="{Binding ElapsedText, Mode=OneWay}" Foreground="White" />
+                </TextBlock>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding HasResult, Converter={StaticResource BoolVis}}">
+                  <TextBlock Text="{Binding ResultSummary}" FontSize="13" Foreground="#CFE0F2" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" MaxWidth="560" ToolTip="{Binding ResultBanner}" />
+                  <Button Style="{StaticResource SecondaryButton}" Height="24" Padding="10,0" Margin="10,0,0,0" FontSize="12"
+                          Content="Открыть папку" Command="{Binding OpenOutputFolderCommand}" />
+                </StackPanel>
+              </DockPanel>
+
+              <Grid Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="52" />
+                </Grid.ColumnDefinitions>
+                <ProgressBar AutomationProperties.AutomationId="MainProgress" Value="{Binding ProgressPercent}" Maximum="100" IsIndeterminate="{Binding IsProgressIndeterminate}" />
+                <TextBlock Grid.Column="1" Text="{Binding ProgressPercentText}" FontSize="13" Foreground="#CFE0F2"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+              </Grid>
+
+              <Button Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Style="{StaticResource SecondaryButton}"
+                      Width="136" Height="42" Margin="22,0,0,0" FontSize="14" Content="Отмена"
+                      Command="{Binding CancelCommand}" VerticalAlignment="Center" />
+
+              <DockPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock DockPanel.Dock="Right" FontSize="13" Foreground="#CFE0F2" Margin="20,0,52,0">
+                  <Run Text="Размер: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding SizeText, Mode=OneWay}" />
+                  <Run Text="     Скорость: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding SpeedText, Mode=OneWay}" />
+                  <Run Text="     Осталось: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding EtaText, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock FontSize="13" Foreground="#CFE0F2" TextTrimming="CharacterEllipsis" ToolTip="{Binding CurrentFile}">
+                  <Run>
+                    <Run.Style>
+                      <Style TargetType="Run">
+                        <Setter Property="Text" Value="Извлечение:   " />
+                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding CurrentPage}" Value="Pack">
+                            <Setter Property="Text" Value="Сжатие:   " />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Run.Style>
+                  </Run><Run Text="{Binding CurrentFile, Mode=OneWay}" />
+                </TextBlock>
+              </DockPanel>
+            </Grid>
+          </Border>
+
+        <!-- ===== Settings / Tools / About (internal scroll only); Height is set from code ===== -->
+        <Border x:Name="OverlayPanel" Grid.Row="0" Grid.RowSpan="3" Style="{StaticResource Panel}" Padding="22,14,10,14"
+                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter='Settings,Tools,About'}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
+            <Grid>
+              <!-- SETTINGS -->
+              <StackPanel Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Settings}">
+                <TextBlock Text="Настройки" Style="{StaticResource SectionTitle}" Margin="0,0,0,16" />
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="44" /><RowDefinition Height="44" /><RowDefinition Height="44" /><RowDefinition Height="44" />
+                  </Grid.RowDefinitions>
+                  <TextBlock Grid.Row="0" Text="MkPFS (exe / .py):" Style="{StaticResource FieldLabel}" />
+                  <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding MkPfsPathSetting, UpdateSourceTrigger=PropertyChanged}" />
+                  <TextBlock Grid.Row="1" Text="Python:" Style="{StaticResource FieldLabel}" />
+                  <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PythonPathSetting, UpdateSourceTrigger=PropertyChanged}" />
+                  <TextBlock Grid.Row="2" Text="fpkg-cli:" Style="{StaticResource FieldLabel}" />
+                  <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding FpkgCliPathSetting, UpdateSourceTrigger=PropertyChanged}" />
+                  <TextBlock Grid.Row="3" Text="Временная папка:" Style="{StaticResource FieldLabel}" />
+                  <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding TempFolderDisplay, UpdateSourceTrigger=PropertyChanged}" />
+                  <Button Grid.Row="3" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowseTempFolderCommand}" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                  <TextBlock Text="CPU:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding CpuOptions}" SelectedItem="{Binding SelectedCpu}" Margin="0,0,20,0" />
+                  <TextBlock Text="Приоритет:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}" MinWidth="130" Margin="0,0,20,0" />
+                  <TextBlock Text="Уровень сжатия:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
+                  <ComboBox ItemsSource="{Binding CompressionLevels}" SelectedItem="{Binding SelectedCompressionLevel}" MinWidth="70" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                  <CheckBox Content="Проверять после сжатия" IsChecked="{Binding VerifyAfterPack}" />
+                  <CheckBox Content="Проверять после распаковки" IsChecked="{Binding VerifyAfterExtract}" />
+                </StackPanel>
+
+                <TextBlock Text="Обновления" Style="{StaticResource SectionTitle}" Margin="0,28,0,12" FontSize="18" />
+                <CheckBox Content="Проверять обновления автоматически" IsChecked="{Binding CheckUpdatesAutomatically}" Margin="0,0,0,8" />
+                <CheckBox Content="Получать тестовые версии" IsChecked="{Binding IncludePrereleases}" Margin="0,0,0,12" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                  <TextBlock Text="Текущая версия:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding AppVersionDisplay}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="{Binding UpdateStatusText}" FontSize="13" Foreground="#CFE0F2" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Проверить обновления"
+                          Command="{Binding CheckUpdatesCommand}" />
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Открыть диалог обновления"
+                          Command="{Binding OpenUpdateDialogCommand}" Margin="8,0,0,0"
+                          Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolVis}}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                  <Button Style="{StaticResource PrimaryAction}" Height="40" Command="{Binding SaveSettingsCommand}">
+                    <TextBlock Text="Сохранить" FontSize="14" FontWeight="SemiBold" Margin="10,0" />
+                  </Button>
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Проверить MkPFS" Command="{Binding TestMkPfsCommand}" Margin="12,0,0,0" />
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Проверить fpkg-cli" Command="{Binding TestFpkgCommand}" Margin="8,0,0,0" />
+                </StackPanel>
+                <TextBlock Text="{Binding MkPfsStatus}" Margin="0,16,0,0" FontSize="13" Foreground="#CFE0F2" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding FpkgStatus}" Margin="0,4,0,0" FontSize="13" Foreground="#CFE0F2" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <!-- TOOLS -->
+              <StackPanel Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Tools}">
+                <TextBlock Text="Инструменты" Style="{StaticResource SectionTitle}" Margin="0,0,0,16" />
+                <Border Style="{StaticResource ValueCell}" Padding="14,10" Margin="0,0,0,8">
+                  <StackPanel>
+                    <TextBlock Text="MkPFS CLI" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding MkPfsStatus}" FontSize="13" Foreground="#CFE0F2" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource ValueCell}" Padding="14,10" Margin="0,0,0,8">
+                  <StackPanel>
+                    <TextBlock Text="fpkg-cli (PSVIETHOA / LibProsperoPkg)" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding FpkgStatus}" FontSize="13" Foreground="#CFE0F2" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource ValueCell}" Padding="14,10" Margin="0,0,0,16">
+                  <StackPanel>
+                    <TextBlock Text="Временная папка" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TempFolderDisplay}" FontSize="13" Foreground="#CFE0F2" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Проверить MkPFS" Command="{Binding TestMkPfsCommand}" />
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Проверить fpkg-cli" Command="{Binding TestFpkgCommand}" Margin="8,0,0,0" />
+                  <Button Style="{StaticResource SecondaryButton}" Height="40" Content="Открыть папку логов" Command="{Binding OpenLogFolderCommand}" Margin="8,0,0,0" />
+                </StackPanel>
+              </StackPanel>
+
+              <!-- ABOUT -->
+              <StackPanel Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=About}">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                  <Viewbox Width="56" Height="56"><ContentControl Content="{StaticResource LogoCube}" /></Viewbox>
+                  <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock FontSize="26" FontWeight="Bold"><Run Text="PS5" /><Run Text="Craft" Foreground="#1E90FF" /><Run Text=" " /><Run Text="{Binding AppVersionDisplay, Mode=OneWay}" FontSize="16" FontWeight="Normal" Foreground="#CFE0F2" /></TextBlock>
+                    <TextBlock Text="PS5 Game Package Tool" Foreground="{StaticResource BrushMuted}" FontSize="14" />
+                  </StackPanel>
+                </StackPanel>
+                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#CFE0F2" LineHeight="22"
+                           Text="Графическая оболочка для fpkg-cli (PSVIETHOA-FPKG-Builder / LibProsperoPkg) и MkPFS CLI. Все тяжёлые операции выполняются во внешних процессах с возможностью отмены, ограничения CPU и приоритета." />
+                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#CFE0F2" LineHeight="22" Margin="0,12,0,0"
+                           Text="Сторонние компоненты сохраняют свои лицензии: MkPFS (GPL-3.0), LibProsperoPkg (GPL), PSVIETHOA-FPKG-Builder. Подробности — в файле THIRD-PARTY-NOTICES.txt." />
+                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource BrushMuted}" LineHeight="22" Margin="0,12,0,0"
+                           Text="PS5Craft не содержит ключей Sony и не обходит защиту. PlayStation и PS5 — товарные знаки Sony Interactive Entertainment; проект с ними не связан." />
+              </StackPanel>
+            </Grid>
+          </ScrollViewer>
+        </Border>
+
+        <!-- ===== LOG (fills the remaining height) ===== -->
+        <Border x:Name="LogPanel" Grid.Row="3" Style="{StaticResource Panel}" Margin="0,8,0,0" Padding="14,6,14,12">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="40" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource SecondaryButton}" Command="{Binding ClearLogCommand}" Height="32">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource IconTrash}" Stroke="#DCE6F2" StrokeThickness="1.6" Width="16" Height="16" Stretch="Uniform"
+                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" />
+                    <TextBlock Text="Очистить" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Button Style="{StaticResource SecondaryButton}" Command="{Binding SaveLogCommand}" Height="32" Margin="8,0,0,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource IconSave}" Stroke="#DCE6F2" StrokeThickness="1.6" Width="16" Height="16" Stretch="Uniform"
+                          StrokeLineJoin="Round" Margin="0,0,8,0" />
+                    <TextBlock Text="Сохранить лог" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Button Style="{StaticResource SecondaryButton}" Command="{Binding OpenLogFolderCommand}" Height="32" Width="38" Padding="0"
+                        Margin="8,0,0,0" ToolTip="Открыть папку логов">
+                  <Path Data="{StaticResource IconFolder}" Stroke="#DCE6F2" StrokeThickness="1.6" Width="16" Height="16" Stretch="Uniform" StrokeLineJoin="Round" />
+                </Button>
+              </StackPanel>
+              <TextBlock Text="Лог" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StatusMessage}" FontSize="13" Foreground="{StaticResource BrushMuted}" VerticalAlignment="Center"
+                         Margin="18,2,12,0" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+
+            <Border Grid.Row="1" Background="#050E19" BorderBrush="#12304A" BorderThickness="1" CornerRadius="6" Padding="2,4">
+              <ListBox x:Name="LogList" ItemsSource="{Binding LogLines}" Background="Transparent" BorderThickness="0"
+                       ItemContainerStyle="{StaticResource LogItem}"
+                       FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" Foreground="{Binding Converter={StaticResource LogBrush}}" TextTrimming="CharacterEllipsis"
+                               FontFamily="Cascadia Mono, Consolas" />
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Border>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>
