@@ -11,7 +11,11 @@ using PS5Craft.Infrastructure.Monitoring;
 using PS5Craft.Infrastructure.Process;
 using PS5Craft.Infrastructure.Settings;
 using PS5Craft.Services;
+using PS5Craft.Services.Library;
+using PS5Craft.Services.Network;
+using PS5Craft.Services.Transfer;
 using PS5Craft.Services.Updates;
+using PS5Craft.Services.Usb;
 using PS5Craft.ViewModels;
 
 namespace PS5Craft.App;
@@ -33,6 +37,12 @@ public partial class App : Application
         sc.AddSingleton<IFpkgService, FpkgService>();
         sc.AddSingleton<IGameMetadataService, GameMetadataService>();
         sc.AddSingleton<IUpdateService, GitHubUpdateService>();
+        sc.AddSingleton<ILibraryService, LibraryService>();
+        sc.AddSingleton<IUsbDriveService, UsbDriveService>();
+        sc.AddSingleton<IUsbExportService, UsbExportService>();
+        sc.AddSingleton<IPs5NetworkDiscoveryService, Ps5NetworkDiscoveryService>();
+        sc.AddSingleton<IPs5TransferService, Ps5TransferService>();
+        sc.AddSingleton<ITransferQueueService, TransferQueueService>();
         sc.AddSingleton<MainViewModel>();
         sc.AddSingleton<MainWindow>();
 
@@ -62,6 +72,92 @@ public partial class App : Application
         vm.RequestCloseForUpdate += (_, _) =>
         {
             window.Dispatcher.Invoke(() => Shutdown());
+        };
+
+        vm.UsbConfirmationRequired += (_, drive) =>
+        {
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var free = drive.FreeBytes / (1024.0 * 1024 * 1024);
+                var total = drive.TotalBytes / (1024.0 * 1024 * 1024);
+                var msg =
+                    $"Найден USB-накопитель\n\nДиск: {drive.DriveLetter}\nНазвание: {drive.VolumeLabel ?? "—"}\nСвободно: {free:0.##} GB\nРазмер: {total:0.##} GB\n\nИспользовать этот накопитель для PS5Craft?";
+                var dlg = new ConfirmDialog("USB", msg, $"Использовать {drive.DriveLetter}", "Отмена") { Owner = window };
+                if (dlg.ShowDialog() == true)
+                {
+                    vm.ConfirmUsbDrive(drive);
+                }
+            });
+        };
+
+        vm.UsbExportOfferRequired += (_, args2) =>
+        {
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var (item, drive) = args2;
+                var size = item.FileSizeBytes / (1024.0 * 1024 * 1024);
+                var msg = $"Готов новый образ\n\n{item.Title}\n{size:0.##} GB\n\nUSB: {drive.DriveLetter}\n\nКопировать на USB?";
+                var dlg = new ConfirmDialog("Экспорт на USB", msg, "Копировать", "Позже") { Owner = window };
+                if (dlg.ShowDialog() == true)
+                {
+                    vm.StartUsbExport(item, drive);
+                }
+            });
+        };
+
+        vm.ConsoleTransferOfferRequired += (_, args2) =>
+        {
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var (item, device) = args2;
+                var size = item.FileSizeBytes / (1024.0 * 1024 * 1024);
+                var remote = string.IsNullOrWhiteSpace(vm.ConsoleRemoteDirectory)
+                    ? "/data/etaHEN/homebrew"
+                    : vm.ConsoleRemoteDirectory.Trim();
+                var msg = $"Отправить игру?\n\n{item.Title}\n{size:0.##} GB\n\nPS5: {device.Endpoint}";
+                var dlg = new ConfirmDialog("Отправка на консоль", msg, "Отправить", "Отмена", editablePath: remote)
+                {
+                    Owner = window
+                };
+                if (dlg.ShowDialog() == true)
+                {
+                    if (!string.IsNullOrWhiteSpace(dlg.EditedPath))
+                    {
+                        vm.SetConsoleRemoteDirectory(dlg.EditedPath);
+                    }
+
+                    vm.StartConsoleTransfer(item, device);
+                }
+            });
+        };
+
+        vm.UserNoticeRequired += (_, args2) =>
+        {
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var dlg = new ConfirmDialog(args2.Title, args2.Message, "OK", "Закрыть") { Owner = window };
+                dlg.ShowDialog();
+            });
+        };
+
+        vm.OverwriteConfirmationRequired += (_, args2) =>
+        {
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var msg =
+                    $"Файл уже существует:\n\n{args2.Path}\n\nПерезаписать его новым образом?";
+                var dlg = new ConfirmDialog("Перезапись", msg, "Перезаписать", "Отмена") { Owner = window };
+                args2.Answer.TrySetResult(dlg.ShowDialog() == true);
+            });
+        };
+
+        vm.ConfirmRequired += (_, args2) =>
+        {
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var dlg = new ConfirmDialog(args2.Title, args2.Message, args2.ConfirmText, "Отмена") { Owner = window };
+                args2.Answer.TrySetResult(dlg.ShowDialog() == true);
+            });
         };
 
         if (args.Maximized)

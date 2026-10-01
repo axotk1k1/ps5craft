@@ -114,6 +114,17 @@ public sealed class MkPfsService : IMkPfsService
             _log.Warning("Формат FFPFS (--raw) с сжатием: консоль может некорректно читать файлы. Рекомендуется FFPFSC.");
         }
 
+        var leftovers = PackageOnlyFiles.SceSysNames
+            .Where(name => File.Exists(Path.Combine(settings.SourceFolder, "sce_sys", name)))
+            .ToList();
+        if (leftovers.Count > 0)
+        {
+            _log.Warning(
+                $"sce_sys contains package-only files from an FPKG CNT: {string.Join(", ", leftovers)}. " +
+                "They are not part of the game file system and may make the image fail to launch. " +
+                "Re-extract with «Подготовить для образа» or remove them before packing.");
+        }
+
         var args = BuildPackArguments(settings);
         _log.Info("Starting MkPFS");
         _log.Info($"Version: {detect.Version}");

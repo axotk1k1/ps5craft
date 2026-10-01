@@ -120,6 +120,7 @@ public sealed class ExtractionSettings
     public string OutputFolder { get; set; } = string.Empty;
     public bool VerifyAfterExtraction { get; set; } = true;
     public bool ExtractCoverAndMetadata { get; set; } = true;
+    public bool RemovePackageOnlyFiles { get; set; } = true;
     public string Passcode { get; set; } = new string('0', 32);
     public string? TempFolder { get; set; }
     public int Threads { get; set; }
@@ -174,4 +175,16 @@ public sealed class AppSettings
     public bool CheckUpdatesAutomatically { get; set; } = true;
     public bool IncludePrereleases { get; set; }
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+
+    // Automatic export (safe defaults)
+    public bool DetectUsbAutomatically { get; set; } = true;
+    public bool AutoCopyToUsb { get; set; }
+    public bool ConfirmBeforeUsbCopy { get; set; } = true;
+    public bool DetectConsoleAutomatically { get; set; } = false;
+    public bool AutoSendToConsole { get; set; }
+    public bool ConfirmBeforeConsoleTransfer { get; set; } = true;
+    public List<ApprovedUsbDevice> ApprovedUsbDevices { get; set; } = [];
+    public string? PreferredConsoleEndpoint { get; set; }
+    /// <summary>FTP destination on the console (etaHEN homebrew folder by default).</summary>
+    public string ConsoleRemoteDirectory { get; set; } = "/data/etaHEN/homebrew";
 }

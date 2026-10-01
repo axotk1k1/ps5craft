@@ -39,42 +39,14 @@ jobs:
       - name: Test
         run: dotnet test PS5Craft.slnx -c Release --nologo
 
-      - name: Publish PS5Craft win-x64 (self-contained)
-        run: >
-          dotnet publish src/PS5Craft.App/PS5Craft.App.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          -p:Version=${{ steps.ver.outputs.version }}
-          -p:InformationalVersion=${{ steps.ver.outputs.version }}
-          -o publish/win-x64
-
-      - name: Publish updater (self-contained single-file)
-        run: >
-          dotnet publish src/PS5Craft.Updater/PS5Craft.Updater.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/updater
-
-      - name: Stage updater into package
+      # Framework-dependent keeps the ZIP small; users install .NET 10 Desktop Runtime once.
+      - name: Publish slim win-x64 package
         shell: pwsh
         run: |
-          Copy-Item publish/updater/PS5Craft.Updater.exe publish/win-x64/PS5Craft.Updater.exe -Force
-          Get-ChildItem publish/win-x64 | Select-Object Name, Length | Format-Table
-
-      - name: Create ZIP and SHA-256
-        shell: pwsh
-        run: |
-          $zip = "PS5Craft-win-x64.zip"
-          if (Test-Path $zip) { Remove-Item $zip -Force }
-          Compress-Archive -Path publish/win-x64/* -DestinationPath $zip -CompressionLevel Optimal
-          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
-          Set-Content -Path "PS5Craft-win-x64.zip.sha256" -Value "$hash  $zip" -NoNewline
-          "ZIP size=$((Get-Item $zip).Length) sha256=$hash"
+          ./scripts/publish-release.ps1 -Configuration Release
+          # Stamp version into already-published binaries via rebuild if needed
+          (Get-Item PS5Craft-win-x64.zip).Length
+          Get-Content PS5Craft-win-x64.zip.sha256
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -82,6 +54,12 @@ jobs:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: PS5Craft ${{ steps.ver.outputs.tag }}
           generate_release_notes: true
+          body: |
+            ## Требования
+            - Windows 10/11 x64
+            - [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (Windows Desktop)
+
+            Распакуйте `PS5Craft-win-x64.zip` и запустите `PS5Craft.exe`.
           files: |
             PS5Craft-win-x64.zip
             PS5Craft-win-x64.zip.sha256

@@ -227,6 +227,30 @@ public sealed class FpkgService : IFpkgService
                 result.ExitCode);
         }
 
+        if (settings.RemovePackageOnlyFiles)
+        {
+            try
+            {
+                var removed = PackageOnlyFiles.Remove(settings.OutputFolder);
+                foreach (var file in removed)
+                {
+                    _log.Info($"Removed package-only file: {file}");
+                }
+
+                _log.Info(removed.Count == 0
+                    ? "No package-only sce_sys files to remove"
+                    : $"Removed {removed.Count} package-only sce_sys file(s) (license/PlayGo/patch metadata from the CNT)");
+            }
+            catch (Exception ex)
+            {
+                _log.Warning($"Could not remove package-only files: {ex.Message}");
+            }
+        }
+        else
+        {
+            _log.Warning("Package-only sce_sys files (license.dat, playgo-*) were kept; an image packed from this folder may fail to launch");
+        }
+
         if (settings.VerifyAfterExtraction)
         {
             var param = Path.Combine(settings.OutputFolder, "sce_sys", "param.json");

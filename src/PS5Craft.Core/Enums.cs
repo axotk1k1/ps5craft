@@ -38,8 +38,32 @@ public enum AppPage
 {
     Extract,
     Pack,
+    Library,
     Info,
     Tools,
     Settings,
     About
+}
+
+public enum LibraryTransferState
+{
+    NotTransferred,
+    Pending,
+    InProgress,
+    Completed,
+    Failed,
+    Incomplete
+}
+
+public enum TransferDestinationKind
+{
+    Usb,
+    Console
+}
+
+public enum DiscoveredDeviceKind
+{
+    Unknown,
+    CompatibleFtp,
+    Ps5Craft
 }

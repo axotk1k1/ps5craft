@@ -24,10 +24,15 @@
     <ToolsRoot>$(MSBuildThisFileDirectory)..\..\tools\</ToolsRoot>
     <UpdaterOutDir>$(MSBuildThisFileDirectory)..\PS5Craft.Updater\bin\$(Configuration)\net10.0\</UpdaterOutDir>
   </PropertyGroup>
+  <!-- Copy only Windows x64 Magick natives from tools/fpkg (skip linux/osx/arm). -->
+  <ItemGroup>
+    <_FpkgAll Include="$(ToolsRoot)fpkg\**\*.*" Condition="Exists('$(ToolsRoot)fpkg\fpkg-cli.exe')" />
+    <FpkgToolFiles Include="@(_FpkgAll)"
+                   Exclude="$(ToolsRoot)fpkg\runtimes\linux-*\**\*;$(ToolsRoot)fpkg\runtimes\osx-*\**\*;$(ToolsRoot)fpkg\runtimes\win-arm64\**\*;$(ToolsRoot)fpkg\runtimes\win-x86\**\*" />
+    <MkPfsToolFiles Include="$(ToolsRoot)mkpfs\**\*.*" />
+  </ItemGroup>
   <Target Name="CopyTools" AfterTargets="Build">
     <ItemGroup>
-      <FpkgToolFiles Include="$(ToolsRoot)fpkg\**\*.*" />
-      <MkPfsToolFiles Include="$(ToolsRoot)mkpfs\**\*.*" />
       <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.exe"
                     Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.exe')" />
       <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.dll"
@@ -40,7 +45,7 @@
     <Copy SourceFiles="@(FpkgToolFiles)"
           DestinationFiles="@(FpkgToolFiles->'$(OutDir)tools\fpkg\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
-          Condition="Exists('$(ToolsRoot)fpkg\fpkg-cli.exe')" />
+          Condition="'@(FpkgToolFiles)' != ''" />
     <Copy SourceFiles="@(MkPfsToolFiles)"
           DestinationFiles="@(MkPfsToolFiles->'$(OutDir)tools\mkpfs\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
@@ -50,8 +55,6 @@
   </Target>
   <Target Name="CopyToolsOnPublish" AfterTargets="Publish">
     <ItemGroup>
-      <FpkgToolFiles Include="$(ToolsRoot)fpkg\**\*.*" />
-      <MkPfsToolFiles Include="$(ToolsRoot)mkpfs\**\*.*" />
       <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.exe"
                     Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.exe')" />
       <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.dll"
@@ -60,17 +63,27 @@
                     Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.deps.json')" />
       <UpdaterFiles Include="$(UpdaterOutDir)PS5Craft.Updater.runtimeconfig.json"
                     Condition="Exists('$(UpdaterOutDir)PS5Craft.Updater.runtimeconfig.json')" />
+      <!-- Magick.NET-AnyCPU also lands non-Windows natives under PublishDir/runtimes -->
+      <_ForeignRuntimes Include="$(PublishDir)runtimes\linux-*\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)runtimes\osx-*\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)runtimes\win-arm64\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)runtimes\win-x86\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)tools\fpkg\runtimes\linux-*\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)tools\fpkg\runtimes\osx-*\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)tools\fpkg\runtimes\win-arm64\**\*.*" />
+      <_ForeignRuntimes Include="$(PublishDir)tools\fpkg\runtimes\win-x86\**\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(FpkgToolFiles)"
           DestinationFiles="@(FpkgToolFiles->'$(PublishDir)tools\fpkg\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
-          Condition="Exists('$(ToolsRoot)fpkg\fpkg-cli.exe')" />
+          Condition="'@(FpkgToolFiles)' != ''" />
     <Copy SourceFiles="@(MkPfsToolFiles)"
           DestinationFiles="@(MkPfsToolFiles->'$(PublishDir)tools\mkpfs\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
           Condition="Exists('$(ToolsRoot)mkpfs\mkpfs.exe')" />
     <Copy SourceFiles="@(UpdaterFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true"
           Condition="'@(UpdaterFiles)' != ''" />
+    <Delete Files="@(_ForeignRuntimes)" TreatErrorsAsWarnings="true" />
   </Target>
   <ItemGroup>
     <Resource Include="Assets\logo-cube.png" />

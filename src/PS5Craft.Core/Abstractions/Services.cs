@@ -80,3 +80,83 @@ public interface IUpdateService
     bool IsInstallDirectoryWritable(string? directory = null);
     Task ApplyUpdateAsync(UpdateInfo info, string zipPath, CancellationToken cancellationToken = default);
 }
+
+public interface ILibraryService
+{
+    event EventHandler? Changed;
+    IReadOnlyList<LibraryItem> Items { get; }
+    Task LoadAsync(CancellationToken cancellationToken = default);
+    Task SaveAsync(CancellationToken cancellationToken = default);
+    Task<LibraryItem> RegisterPackedImageAsync(
+        string imagePath,
+        GameInfo? game,
+        OutputFormat format,
+        string? sha256 = null,
+        CancellationToken cancellationToken = default);
+    Task UpdateAsync(LibraryItem item, CancellationToken cancellationToken = default);
+    Task RemoveAsync(string id, CancellationToken cancellationToken = default);
+    /// <summary>Removes library entries whose packed image file no longer exists. Returns how many were removed.</summary>
+    Task<int> PruneMissingAsync(CancellationToken cancellationToken = default);
+    LibraryItem? FindById(string id);
+    IReadOnlyList<LibraryItem> GetIncompleteTransfers();
+}
+
+public interface IUsbDriveService
+{
+    event EventHandler<UsbDriveInfo>? DriveArrived;
+    event EventHandler<UsbDriveInfo>? DriveRemoved;
+    IReadOnlyList<UsbDriveInfo> GetRemovableDrives();
+    UsbDriveInfo? FindApprovedConnected(IEnumerable<ApprovedUsbDevice> approved);
+    bool IsApproved(UsbDriveInfo drive, IEnumerable<ApprovedUsbDevice> approved);
+    ApprovedUsbDevice Approve(UsbDriveInfo drive);
+    void StartWatching();
+    void StopWatching();
+}
+
+public interface IUsbExportService
+{
+    string BuildDestinationPath(UsbDriveInfo drive, LibraryItem item);
+    Task<FileCopyResult> CopyToUsbAsync(
+        LibraryItem item,
+        UsbDriveInfo drive,
+        bool overwrite,
+        IProgress<TransferProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+    Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken = default);
+}
+
+public interface IPs5NetworkDiscoveryService
+{
+    Task<IReadOnlyList<DiscoveredNetworkDevice>> DiscoverAsync(
+        int port = 2121,
+        int maxConcurrency = 48,
+        int timeoutMs = 700,
+        CancellationToken cancellationToken = default);
+    Task<DiscoveredNetworkDevice?> ProbeHostAsync(string host, int port = 2121, int timeoutMs = 700, CancellationToken cancellationToken = default);
+}
+
+public interface IPs5TransferService
+{
+    Task<bool> IsAvailableAsync(string host, int port = 2121, CancellationToken cancellationToken = default);
+    Task<FileCopyResult> SendFileAsync(
+        string host,
+        int port,
+        string localPath,
+        string remoteFileName,
+        string? remoteDirectory = null,
+        IProgress<TransferProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ITransferQueueService
+{
+    event EventHandler? Changed;
+    event EventHandler<TransferProgress>? ProgressChanged;
+    event EventHandler<TransferJob>? JobFinished;
+    IReadOnlyList<TransferJob> Jobs { get; }
+    TransferJob? ActiveJob { get; }
+    void EnqueueUsb(LibraryItem item, UsbDriveInfo drive);
+    void EnqueueConsole(LibraryItem item, DiscoveredNetworkDevice device);
+    Task StartAsync(CancellationToken cancellationToken = default);
+    void CancelActive();
+}

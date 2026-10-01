@@ -132,6 +132,24 @@ public sealed class SettingsService : ISettingsService
         KeepTempOnFailure = s.KeepTempOnFailure,
         CheckUpdatesAutomatically = s.CheckUpdatesAutomatically,
         IncludePrereleases = s.IncludePrereleases,
-        LastUpdateCheckUtc = s.LastUpdateCheckUtc
+        LastUpdateCheckUtc = s.LastUpdateCheckUtc,
+        DetectUsbAutomatically = s.DetectUsbAutomatically,
+        AutoCopyToUsb = s.AutoCopyToUsb,
+        ConfirmBeforeUsbCopy = s.ConfirmBeforeUsbCopy,
+        DetectConsoleAutomatically = s.DetectConsoleAutomatically,
+        AutoSendToConsole = s.AutoSendToConsole,
+        ConfirmBeforeConsoleTransfer = s.ConfirmBeforeConsoleTransfer,
+        ApprovedUsbDevices = s.ApprovedUsbDevices.Select(d => new ApprovedUsbDevice
+        {
+            DeviceKey = d.DeviceKey,
+            VolumeLabel = d.VolumeLabel,
+            VolumeSerial = d.VolumeSerial,
+            LastDriveLetter = d.LastDriveLetter,
+            ApprovedAt = d.ApprovedAt
+        }).ToList(),
+        PreferredConsoleEndpoint = s.PreferredConsoleEndpoint,
+        ConsoleRemoteDirectory = string.IsNullOrWhiteSpace(s.ConsoleRemoteDirectory)
+            ? "/data/etaHEN/homebrew"
+            : s.ConsoleRemoteDirectory
     };
 }

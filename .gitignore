@@ -6,6 +6,8 @@ obj/
 *.suo
 *.nupkg
 publish/
+*.zip
+*.sha256
 logs/
 temp/
 AppData/

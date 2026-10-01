@@ -26,7 +26,13 @@ public partial class MainViewModel : ObservableObject
         IGameMetadataService metadata,
         ILogService log,
         ISettingsService settings,
-        IUpdateService updates)
+        IUpdateService updates,
+        ILibraryService library,
+        IUsbDriveService usb,
+        IUsbExportService usbExport,
+        IPs5NetworkDiscoveryService discovery,
+        IPs5TransferService consoleTransfer,
+        ITransferQueueService transferQueue)
     {
         _fpkg = fpkg;
         _mkpfs = mkpfs;
@@ -34,12 +40,25 @@ public partial class MainViewModel : ObservableObject
         _log = log;
         _settings = settings;
         _updates = updates;
+        _library = library;
+        _usb = usb;
+        _usbExport = usbExport;
+        _discovery = discovery;
+        _consoleTransfer = consoleTransfer;
+        _transferQueue = transferQueue;
 
         LogLines = new ObservableCollection<string>();
         LanguageChips = new ObservableCollection<string>();
         _log.EntryAdded += (_, e) =>
         {
-            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null)
+            {
+                return;
+            }
+
+            // BeginInvoke: never block worker threads (network scan / process detect) on the UI.
+            _ = dispatcher.BeginInvoke(() =>
             {
                 LogLines.Add(e.ToString());
                 while (LogLines.Count > 5000)
@@ -76,6 +95,7 @@ public partial class MainViewModel : ObservableObject
         PythonPathSetting = s.PythonPath ?? string.Empty;
         FpkgCliPathSetting = s.FpkgCliPath ?? string.Empty;
         InitializeUpdateSettings();
+        InitializeExportSubsystem();
 
         _log.Info("PS5Craft started");
         _ = InitializeToolsAsync();
@@ -116,6 +136,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private bool _verifyAfterExtract = true;
     [ObservableProperty] private bool _extractCoverAndMetadata = true;
+    [ObservableProperty] private bool _removePackageOnlyFiles = true;
     [ObservableProperty] private bool _verifyAfterPack = true;
     [ObservableProperty] private bool _compressEnabled = true;
     [ObservableProperty] private bool _skipExecutableCompression = true;
@@ -210,10 +231,26 @@ public partial class MainViewModel : ObservableObject
 
     private async Task InitializeToolsAsync()
     {
-        var fpkg = await _fpkg.DetectAsync();
-        FpkgStatus = fpkg.Available ? $"✓ fpkg-cli: {fpkg.Path}" : $"✗ {fpkg.Details}";
-        var mk = await _mkpfs.DetectAsync();
-        MkPfsStatus = mk.Available ? $"✓ MkPFS {mk.Version}: {mk.Path}" : $"✗ {mk.Details}";
+        try
+        {
+            var fpkg = await _fpkg.DetectAsync().ConfigureAwait(false);
+            var mk = await _mkpfs.DetectAsync().ConfigureAwait(false);
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null)
+            {
+                return;
+            }
+
+            await dispatcher.InvokeAsync(() =>
+            {
+                FpkgStatus = fpkg.Available ? $"✓ fpkg-cli: {fpkg.Path}" : $"✗ {fpkg.Details}";
+                MkPfsStatus = mk.Available ? $"✓ MkPFS {mk.Version}: {mk.Path}" : $"✗ {mk.Details}";
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.Warning($"Tool detection failed: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -223,6 +260,7 @@ public partial class MainViewModel : ObservableObject
         {
             "extract" => AppPage.Extract,
             "pack" => AppPage.Pack,
+            "library" => AppPage.Library,
             "info" => AppPage.Info,
             "tools" => AppPage.Tools,
             "settings" => AppPage.Settings,
@@ -306,6 +344,7 @@ public partial class MainViewModel : ObservableObject
                 OutputFolder = ExtractOutputFolder,
                 VerifyAfterExtraction = VerifyAfterExtract,
                 ExtractCoverAndMetadata = ExtractCoverAndMetadata,
+                RemovePackageOnlyFiles = RemovePackageOnlyFiles,
                 TempFolder = _settings.TempDirectory,
                 ProcessPriority = MapPriority(SelectedPriority)
             };
@@ -344,6 +383,37 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (File.Exists(PackOutputPath))
+        {
+            var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var handler = OverwriteConfirmationRequired;
+            if (handler is null)
+            {
+                _log.Error("Output file already exists: " + PackOutputPath);
+                ResultBanner = "Файл уже существует. Укажите другой путь или удалите старый образ.";
+                return;
+            }
+
+            handler.Invoke(this, (PackOutputPath, answer));
+            if (!await answer.Task.ConfigureAwait(true))
+            {
+                StatusMessage = "Упаковка отменена";
+                return;
+            }
+
+            try
+            {
+                File.Delete(PackOutputPath);
+                _log.Info("Removed existing output before pack: " + PackOutputPath);
+            }
+            catch (Exception ex)
+            {
+                _log.Error("Cannot overwrite output: " + ex.Message);
+                ResultBanner = "Не удалось удалить существующий файл: " + ex.Message;
+                return;
+            }
+        }
+
         _cts = new CancellationTokenSource();
         IsBusy = true;
         ResultBanner = null;
@@ -372,6 +442,10 @@ public partial class MainViewModel : ObservableObject
 
             var result = await _mkpfs.PackFolderAsync(settings, new Progress<OperationProgress>(ApplyProgress), _cts.Token);
             HandleResult(result);
+            if (result.Success)
+            {
+                await OnPackSucceededAsync(result, settings);
+            }
         }
         catch (Exception ex)
         {
@@ -440,6 +514,7 @@ public partial class MainViewModel : ObservableObject
         s.VerifyAfterExtraction = VerifyAfterExtract;
         s.TempFolder = string.IsNullOrWhiteSpace(TempFolderDisplay) ? null : TempFolderDisplay;
         PersistUpdateSettings(s);
+        PersistExportSettings(s);
         _settings.Save(s);
         TempFolderDisplay = _settings.TempDirectory;
         StatusMessage = "Настройки сохранены";

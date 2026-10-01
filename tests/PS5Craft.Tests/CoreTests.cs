@@ -127,3 +127,32 @@ public class SettingsServiceTests
         }
     }
 }
+
+public class PackageOnlyFilesTests
+{
+    [Fact]
+    public void Remove_DeletesCntArtifacts_KeepsGameMetadata()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ps5craft-pof-" + Guid.NewGuid().ToString("N"));
+        var sceSys = Path.Combine(root, "sce_sys");
+        Directory.CreateDirectory(Path.Combine(sceSys, "trophy2"));
+        string[] keep = ["param.json", "icon0.png", "keystone", "pfs-version.dat", "nptitle.dat", "trophy2/trophy00.ucp"];
+        string[] drop = ["license.dat", "license.info", "playgo-chunk.dat", "playgo-hash-table.dat", "playgo-ficm.dat", "playgo-scenario.json"];
+        foreach (var f in keep.Concat(drop))
+        {
+            File.WriteAllText(Path.Combine(sceSys, f), "x");
+        }
+
+        try
+        {
+            var removed = PS5Craft.Services.PackageOnlyFiles.Remove(root);
+            Assert.Equal(drop.Length, removed.Count);
+            Assert.All(drop, f => Assert.False(File.Exists(Path.Combine(sceSys, f))));
+            Assert.All(keep, f => Assert.True(File.Exists(Path.Combine(sceSys, f))));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+}
