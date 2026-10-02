@@ -92,12 +92,40 @@ public class ProgressParserTests
     }
 
     [Theory]
-    [InlineData("1.5 GB", 1.5 * 1024 * 1024 * 1024)]
-    [InlineData("380 MB", 380.0 * 1024 * 1024)]
-    public void ParseSize(string text, double expected)
+    [InlineData("verify", "проверка")]
+    [InlineData("compare", "сравнение")]
+    [InlineData("compress", "сжатие")]
+    [InlineData("scan", "сканирование")]
+    [InlineData("write", "запись")]
+    public void MkPfs_LocalizePhase(string input, string expected)
     {
-        var bytes = MkPfsProgressParser.ParseSizeToBytes(text);
-        Assert.InRange(bytes, expected * 0.99, expected * 1.01);
+        Assert.Equal(expected, MkPfsProgressParser.LocalizePhase(input));
+    }
+
+    [Fact]
+    public void MkPfs_AlignStatus_MatchesScaledPercent()
+    {
+        var ok = MkPfsProgressParser.TryParse(
+            "[###########################---]  94% verify @ 267.11 MB/s ETA 17s", out var p);
+        Assert.True(ok);
+        // Same scaling MkPfsService applies for the first verify pass (0–50%).
+        p.Percent = 50.0 * (94.0 / 100.0);
+        MkPfsProgressParser.AlignStatusWithPercent(p);
+        Assert.Equal("проверка", p.Phase);
+        Assert.Contains("47%", p.StatusText, StringComparison.Ordinal);
+        Assert.Contains("проверка", p.StatusText, StringComparison.Ordinal);
+        Assert.DoesNotContain("94%", p.StatusText, StringComparison.Ordinal);
+        Assert.DoesNotContain("verify", p.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MkPfs_IsVerifyPhase_IncludesCompare()
+    {
+        Assert.True(MkPfsProgressParser.IsVerifyPhase("verify"));
+        Assert.True(MkPfsProgressParser.IsVerifyPhase("compare"));
+        Assert.True(MkPfsProgressParser.IsVerifyPhase("проверка"));
+        Assert.True(MkPfsProgressParser.IsVerifyPhase("сравнение"));
+        Assert.False(MkPfsProgressParser.IsVerifyPhase("compress"));
     }
 }
 

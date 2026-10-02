@@ -16,6 +16,8 @@ public sealed class ProcessStartRequest
     public TimeSpan? Timeout { get; init; }
     public ProcessPriorityClass Priority { get; init; } = ProcessPriorityClass.BelowNormal;
     public IntPtr? ProcessorAffinity { get; init; }
+    /// <summary>Called on the runner thread right after the process has started (PID available).</summary>
+    public Action<int>? OnStarted { get; init; }
 }
 
 public enum ProcessPriorityClass

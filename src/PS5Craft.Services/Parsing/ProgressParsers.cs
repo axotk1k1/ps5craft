@@ -59,6 +59,114 @@ public static partial class MkPfsProgressParser
         return true;
     }
 
+    /// <summary>
+    /// Maps MkPFS English phase tokens to UI labels, and rewrites StatusText so the
+    /// percentage in the status line matches <see cref="OperationProgress.Percent"/>
+    /// (after any overall-job scaling).
+    /// </summary>
+    public static void AlignStatusWithPercent(OperationProgress progress)
+    {
+        if (progress.Percent is not { } pct)
+        {
+            return;
+        }
+
+        var phaseRu = LocalizePhase(progress.Phase);
+        if (!string.IsNullOrWhiteSpace(phaseRu) &&
+            !string.Equals(progress.Phase, phaseRu, StringComparison.Ordinal))
+        {
+            progress.Phase = phaseRu;
+        }
+
+        var barFilled = (int)Math.Clamp(Math.Round(pct * 28 / 100.0), 0, 28);
+        var bar = new string('#', barFilled) + new string('-', 28 - barFilled);
+        var speed = progress.SpeedBytesPerSecond > 0
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $" @ {FormatSpeed(progress.SpeedBytesPerSecond)}")
+            : string.Empty;
+        var eta = progress.EstimatedRemaining is { } rem
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $" ETA {(int)Math.Ceiling(rem.TotalSeconds)}s")
+            : string.Empty;
+        var label = string.IsNullOrWhiteSpace(phaseRu) ? "работа" : phaseRu;
+        progress.StatusText = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"[{bar}] {pct:0}% {label}{speed}{eta}");
+    }
+
+    public static string LocalizePhase(string? phase)
+    {
+        if (string.IsNullOrWhiteSpace(phase))
+        {
+            return string.Empty;
+        }
+
+        if (phase.Contains("compare", StringComparison.OrdinalIgnoreCase) ||
+            phase.Contains("сравнен", StringComparison.OrdinalIgnoreCase))
+        {
+            return "сравнение";
+        }
+
+        if (phase.Contains("verif", StringComparison.OrdinalIgnoreCase) ||
+            phase.Contains("провер", StringComparison.OrdinalIgnoreCase))
+        {
+            return "проверка";
+        }
+
+        if (phase.Contains("compress", StringComparison.OrdinalIgnoreCase) ||
+            phase.Contains("сжат", StringComparison.OrdinalIgnoreCase))
+        {
+            return "сжатие";
+        }
+
+        if (phase.Contains("scan", StringComparison.OrdinalIgnoreCase) ||
+            phase.Contains("скан", StringComparison.OrdinalIgnoreCase))
+        {
+            return "сканирование";
+        }
+
+        if (phase.Contains("exfat", StringComparison.OrdinalIgnoreCase))
+        {
+            return "exfat";
+        }
+
+        if (phase.Contains("write", StringComparison.OrdinalIgnoreCase) ||
+            phase.Contains("запис", StringComparison.OrdinalIgnoreCase))
+        {
+            return "запись";
+        }
+
+        return phase;
+    }
+
+    public static bool IsVerifyPhase(string? phase) =>
+        !string.IsNullOrWhiteSpace(phase) &&
+        (phase.Contains("verif", StringComparison.OrdinalIgnoreCase) ||
+         phase.Contains("compare", StringComparison.OrdinalIgnoreCase) ||
+         phase.Contains("провер", StringComparison.OrdinalIgnoreCase) ||
+         phase.Contains("сравнен", StringComparison.OrdinalIgnoreCase));
+
+    private static string FormatSpeed(double bytesPerSecond)
+    {
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        if (bytesPerSecond >= 1024L * 1024 * 1024)
+        {
+            return string.Create(culture, $"{bytesPerSecond / (1024L * 1024 * 1024):0.00} GB/s");
+        }
+
+        if (bytesPerSecond >= 1024 * 1024)
+        {
+            return string.Create(culture, $"{bytesPerSecond / (1024 * 1024):0.00} MB/s");
+        }
+
+        if (bytesPerSecond >= 1024)
+        {
+            return string.Create(culture, $"{bytesPerSecond / 1024:0.0} KB/s");
+        }
+
+        return string.Create(culture, $"{bytesPerSecond:0} B/s");
+    }
+
     public static double ParseSizeToBytes(string text)
     {
         text = text.Trim();

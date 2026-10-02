@@ -658,6 +658,40 @@
         </Setter>
       </Style>
 
+      <!-- Result: cyan fill = compressed size; green remainder = space saved. -->
+      <Style x:Key="CompressionResultProgressBar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="16" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ProgressBar">
+              <Grid>
+                <Border x:Name="PART_Track" BorderBrush="#1A6A90" BorderThickness="1" CornerRadius="8">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                      <GradientStop Color="#1A3D2A" Offset="0" />
+                      <GradientStop Color="#2E8B57" Offset="0.55" />
+                      <GradientStop Color="#3DDC97" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+                <Border x:Name="PART_Indicator" HorizontalAlignment="Left" CornerRadius="8" Margin="1">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                      <GradientStop Color="#5EE7FF" Offset="0" />
+                      <GradientStop Color="#2BB8FF" Offset="0.45" />
+                      <GradientStop Color="#1A8AD4" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                  <Border.Effect>
+                    <DropShadowEffect Color="#2BB8FF" BlurRadius="10" ShadowDepth="0" Opacity="0.45" />
+                  </Border.Effect>
+                </Border>
+              </Grid>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+
       <!-- Log list -->
       <Style x:Key="LogItem" TargetType="ListBoxItem">
         <Setter Property="Padding" Value="0" />

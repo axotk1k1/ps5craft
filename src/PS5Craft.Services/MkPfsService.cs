@@ -123,8 +123,8 @@ public sealed class MkPfsService : IMkPfsService
             }
         }
 
-        // FFPFSC: never use the one-pass fused `pack folder` path — it verifies locally but the console
-        // mis-reads the image. Always build an uncompressed inner PFS first, then wrap it with `pack file`.
+        // FFPFSC: two-pass exFAT → pack file (MkPFS Option 1 — maximum console compatibility).
+        // Nested raw PFS + PFSC (Option 5) verifies locally but often dies at splash when compressed.
         if (settings.Format == OutputFormat.Ffpfsc)
         {
             return await PackFfpfscTwoPassAsync(settings, detect, progress, cancellationToken)
@@ -181,9 +181,10 @@ public sealed class MkPfsService : IMkPfsService
     }
 
     /// <summary>
-    /// Build <c>.ffpfsc</c> as a nested container the console accepts: an uncompressed inner PFS
-    /// (<c>pack folder --raw --no-compress</c>) wrapped as a single payload file by <c>pack file</c>.
-    /// The fused one-pass <c>pack folder</c> path verifies locally but mis-reads on console (MkPFS issue #49).
+    /// Build <c>.ffpfsc</c> the way MkPFS recommends for console backups: uncompressed exFAT of the
+    /// game folder, then <c>pack file</c> (optional PFSC). Nested raw PFS + PFSC (Option 5) often
+    /// passes local verify but fails at splash on compressed titles; exFAT→FFPFSC matches the layout
+    /// that already works when the user picks EXFAT alone.
     /// </summary>
     private async Task<OperationResult> PackFfpfscTwoPassAsync(
         CompressionSettings settings,
@@ -197,19 +198,22 @@ public sealed class MkPfsService : IMkPfsService
         var outputDir = Path.GetDirectoryName(outputFull)!;
         Directory.CreateDirectory(outputDir);
 
-        // Canonical nested name from MkPFS Option 5 / ShadowMountPlus docs. Nested `.ffpfs`
-        // works too, but `pfs_image.dat` is the documented inner payload for PFSC containers.
-        var innerImage = Path.Combine(outputDir, "pfs_image.dat");
+        // Same volume as the final image; renamed away before background delete.
+        var innerExfat = Path.Combine(
+            outputDir,
+            Path.GetFileNameWithoutExtension(outputFull) + ".inner.exfat");
 
         var sw = Stopwatch.StartNew();
         long inputBytes = EstimateFolderSize(settings.SourceFolder);
 
-        _log.Info($"FFPFSC: двухпроходная сборка (pack folder --raw --no-compress → pack file){(settings.Compress ? " со сжатием" : " без сжатия")}.");
+        _log.Info(
+            $"FFPFSC: двухпроходная сборка (pack exfat → pack file)" +
+            $"{(settings.Compress ? " со сжатием PFSC" : " без сжатия")} — максимальная совместимость.");
         _log.Info("Starting MkPFS (FFPFSC two-pass wrapper)");
         _log.Info($"Version: {detect.Version}");
         _log.Info($"Source: {settings.SourceFolder}");
         _log.Info($"Output: {settings.OutputPath}");
-        _log.Info($"Inner image: {innerImage}");
+        _log.Info($"Inner exFAT: {innerExfat}");
         _log.Info("Format: Ffpfsc");
         _log.Info($"Compress: {settings.Compress}");
         if (settings.Compress)
@@ -224,31 +228,32 @@ public sealed class MkPfsService : IMkPfsService
         progress?.Report(new OperationProgress
         {
             Phase = "inner",
-            StatusText = "[1/2] Создание несжатого образа…",
+            StatusText = "[1/2] Создание образа exFAT…",
             TotalBytes = inputBytes,
             Percent = 0
         });
 
         try
         {
-            // MkPFS prompts before overwriting, which would block a GUI-spawned process.
-            TryDeleteFile(innerImage);
+            TryDeleteFile(innerExfat);
+            ScheduleStaleTempCleanup(outputDir);
+
+            await EnsureAmprIndexIfNeededAsync(settings.SourceFolder, cancellationToken)
+                .ConfigureAwait(false);
 
             var innerSettings = new CompressionSettings
             {
                 SourceFolder = settings.SourceFolder,
-                OutputPath = innerImage,
-                Format = OutputFormat.Ffpfs,
+                OutputPath = innerExfat,
+                Format = OutputFormat.Exfat,
                 Compress = false,
-                BlockSize = settings.BlockSize,
                 Verbose = settings.Verbose,
                 ProcessPriority = settings.ProcessPriority,
                 TempFolder = settings.TempFolder,
                 Version = settings.Version
             };
-            var innerArgs = BuildUncompressedInnerPfsArguments(innerSettings);
+            var innerArgs = BuildExfatPackArguments(innerSettings);
             _log.Info("MkPFS [1/2]: " + FormatArgs(innerArgs));
-            // Pass 1 is the uncompressed write; leave the rest of the bar for the compressed wrap.
             var innerResult = await RunPackProcessAsync(
                     innerSettings, innerArgs, inputBytes, progress, sw, cancellationToken,
                     rangeStart: 0, rangeEnd: settings.Compress ? 45 : 90, compressed: false)
@@ -258,26 +263,25 @@ public sealed class MkPfsService : IMkPfsService
                 return FinishPack(settings, innerResult, inputBytes, sw, failureLabel: "Упаковка");
             }
 
-            if (!File.Exists(innerImage))
+            if (!File.Exists(innerExfat))
             {
                 return OperationResult.Fail(
                     "Упаковка завершилась с ошибкой.",
-                    $"Несжатый внутренний образ не создан: {innerImage}");
+                    $"Внутренний exFAT-образ не создан: {innerExfat}");
             }
 
-            // pack file asks "Overwrite? [Y/n]" on stdin, which a GUI process cannot answer.
             TryDeleteFile(settings.OutputPath);
 
             progress?.Report(new OperationProgress
             {
                 Phase = "wrap",
                 StatusText = settings.Compress
-                    ? "[2/2] Сжатие обёртки (pack file)…"
+                    ? "[2/2] Сжатие обёртки PFSC (pack file)…"
                     : "[2/2] Обёртка без сжатия (pack file)…",
                 TotalBytes = inputBytes
             });
 
-            var wrapArgs = BuildFfpfscFromFileArguments(settings, innerImage);
+            var wrapArgs = BuildFfpfscFromFileArguments(settings, innerExfat);
             _log.Info("MkPFS [2/2]: " + FormatArgs(wrapArgs));
             var wrapSettings = new CompressionSettings
             {
@@ -306,11 +310,7 @@ public sealed class MkPfsService : IMkPfsService
         }
         finally
         {
-            if (File.Exists(innerImage))
-            {
-                _log.Info("[3/3] Удаление временного образа…");
-                TryDeleteFile(innerImage);
-            }
+            ScheduleLargeTempCleanup(innerExfat);
         }
     }
 
@@ -353,6 +353,79 @@ public sealed class MkPfsService : IMkPfsService
         {
             // best-effort cleanup
         }
+    }
+
+    /// <summary>
+    /// Frees the canonical temp name immediately, then deletes the (possibly huge) file off the UI path.
+    /// </summary>
+    private void ScheduleLargeTempCleanup(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return;
+        }
+
+        string pending = path;
+        try
+        {
+            pending = path + ".deleting-" + Guid.NewGuid().ToString("N");
+            File.Move(path, pending);
+        }
+        catch
+        {
+            // If rename fails (locked / cross-volume), still attempt a background delete of the original.
+            pending = path;
+        }
+
+        _log.Info("[3/3] Удаление временного образа в фоне…");
+        DeleteLargeFileInBackground(pending, announceSuccess: true);
+    }
+
+    private void ScheduleStaleTempCleanup(string outputDir)
+    {
+        try
+        {
+            foreach (var leftover in Directory.EnumerateFiles(outputDir, "pfs_image.dat.deleting-*")
+                         .Concat(Directory.EnumerateFiles(outputDir, "*.inner.exfat.deleting-*")))
+            {
+                DeleteLargeFileInBackground(leftover, announceSuccess: false);
+            }
+        }
+        catch
+        {
+            // best-effort
+        }
+    }
+
+    private void DeleteLargeFileInBackground(string target, bool announceSuccess)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                // Truncate first so free space returns sooner; Delete then finishes the directory entry.
+                try
+                {
+                    using var fs = new FileStream(
+                        target, FileMode.Open, FileAccess.Write, FileShare.None, 1, FileOptions.None);
+                    fs.SetLength(0);
+                }
+                catch
+                {
+                    // Fall through to Delete even if truncate is denied.
+                }
+
+                File.Delete(target);
+                if (announceSuccess)
+                {
+                    _log.Info("Временный образ удалён.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Warning($"Не удалось удалить временный образ ({Path.GetFileName(target)}): {ex.Message}");
+            }
+        });
     }
 
     /// <summary>
@@ -455,9 +528,10 @@ public sealed class MkPfsService : IMkPfsService
     }
 
     /// <summary>
-    /// MkPFS prints each phase (scan, compress, write) as its own 0–100%. Mapping those raw values
-    /// straight onto the bar makes it jump to 100% when the scan finishes, then stick there.
-    /// Each phase owns a slice of <paramref name="rangeStart"/>–<paramref name="rangeEnd"/> instead.
+    /// MkPFS prints each phase (scan, compress, write, exfat, …) as its own 0–100%. Mapping those
+    /// raw values straight onto the bar makes it jump to 100% when an early phase finishes.
+    /// Each known phase owns a slice of <paramref name="rangeStart"/>–<paramref name="rangeEnd"/>;
+    /// unknown phases (e.g. <c>exfat</c> on pass 1) still map linearly into that range so the bar moves.
     /// </summary>
     private static double? ScalePhasePercent(string? phase, double percent, double rangeStart, double rangeEnd, bool compressed)
     {
@@ -467,30 +541,34 @@ public sealed class MkPfsService : IMkPfsService
         }
 
         // Verify drives the violet overlay from the raw 0–100 value.
-        if (phase.Contains("verif", StringComparison.OrdinalIgnoreCase) ||
-            phase.Contains("compare", StringComparison.OrdinalIgnoreCase))
+        if (MkPfsProgressParser.IsVerifyPhase(phase))
         {
             return null;
         }
 
+        var span = rangeEnd - rangeStart;
+        var clamped = Math.Clamp(percent, 0, 100) / 100.0;
+
+        // Uncompressed / inner passes: pack exfat is a single dominant phase.
+        // Compressed wrap: classic scan → compress → write.
         (string Name, double Weight)[] slices = compressed
             ? [("scan", 0.04), ("compress", 0.72), ("write", 0.24)]
-            : [("scan", 0.06), ("write", 0.94)];
+            : [("scan", 0.04), ("exfat", 0.92), ("write", 0.04)];
 
         var cursor = 0.0;
-        var span = rangeEnd - rangeStart;
         foreach (var (name, weight) in slices)
         {
             if (phase.Contains(name, StringComparison.OrdinalIgnoreCase))
             {
-                var local = cursor + weight * (Math.Clamp(percent, 0, 100) / 100.0);
+                var local = cursor + weight * clamped;
                 return rangeStart + span * local;
             }
 
             cursor += weight;
         }
 
-        return null;
+        // Fallback (any other MkPFS phase token): use the whole assigned range.
+        return rangeStart + span * clamped;
     }
 
     private async Task<ProcessResult> RunPackProcessAsync(
@@ -513,37 +591,65 @@ public sealed class MkPfsService : IMkPfsService
             Priority = MapPriority(settings.ProcessPriority)
         };
 
+        var lastLoggedPhase = string.Empty;
+        var lastLoggedBucket = -1;
         var processProgress = new Progress<ProcessOutput>(o =>
         {
-            _log.Info(o.Line);
             if (MkPfsProgressParser.TryParse(o.Line, out var parsed))
             {
                 parsed.TotalBytes ??= inputBytes;
                 parsed.Elapsed = sw.Elapsed;
-                if (parsed.Percent is { } pct && inputBytes > 0)
-                {
-                    // Bytes follow the current MkPFS phase, not the scaled overall bar.
-                    parsed.ProcessedBytes = (long)(inputBytes * (pct / 100.0));
-                }
+                var rawPhase = parsed.Phase ?? string.Empty;
+                var rawPct = parsed.Percent;
 
-                if (parsed.Phase is { } phase &&
-                    (phase.Contains("verif", StringComparison.OrdinalIgnoreCase) ||
-                     phase.Contains("compare", StringComparison.OrdinalIgnoreCase)))
+                if (MkPfsProgressParser.IsVerifyPhase(rawPhase))
                 {
-                    // Full --verify is two passes over the image (verify, then compare). Each prints
-                    // its own 0–100%, so the violet bar must share that range or it sticks at 100%
-                    // while compare is still running.
-                    if (parsed.Percent is { } rawVerify)
+                    // Full --verify is two passes (verify, then compare). Scale into one 0–100 bar,
+                    // but keep the status/size lines on the current pass so they match each other.
+                    var isCompare = rawPhase.Contains("compare", StringComparison.OrdinalIgnoreCase)
+                                    || rawPhase.Contains("сравнен", StringComparison.OrdinalIgnoreCase);
+                    double? overallPct = null;
+                    if (rawPct is { } rawVerify)
                     {
-                        var verifySliceStart = phase.Contains("compare", StringComparison.OrdinalIgnoreCase) ? 50.0 : 0.0;
-                        parsed.Percent = verifySliceStart + 50.0 * (Math.Clamp(rawVerify, 0, 100) / 100.0);
+                        var clamped = Math.Clamp(rawVerify, 0, 100);
+                        overallPct = (isCompare ? 50.0 : 0.0) + 50.0 * (clamped / 100.0);
+                        parsed.Percent = clamped;
+                        if (inputBytes > 0)
+                        {
+                            parsed.ProcessedBytes = (long)(inputBytes * (clamped / 100.0));
+                        }
                     }
 
-                    parsed.Phase = "verify";
+                    parsed.Phase = isCompare ? "compare" : "verify";
+                    MkPfsProgressParser.AlignStatusWithPercent(parsed);
+                    if (overallPct is { } scaled)
+                    {
+                        parsed.Percent = scaled;
+                    }
                 }
-                else if (parsed.Percent is { } rawPct)
+                else if (rawPct is { } pct)
                 {
-                    parsed.Percent = ScalePhasePercent(parsed.Phase, rawPct, rangeStart, rangeEnd, phaseCompressed);
+                    parsed.Percent = ScalePhasePercent(parsed.Phase, pct, rangeStart, rangeEnd, phaseCompressed);
+                    if (parsed.Percent is { } scaledPct && inputBytes > 0)
+                    {
+                        parsed.ProcessedBytes = (long)(inputBytes * (scaledPct / 100.0));
+                    }
+
+                    MkPfsProgressParser.AlignStatusWithPercent(parsed);
+                }
+                else
+                {
+                    MkPfsProgressParser.AlignStatusWithPercent(parsed);
+                }
+
+                // Progress ticks arrive many times per second — keep the log readable.
+                var bucket = parsed.Percent is { } p ? (int)(p / 2) : -1;
+                var phaseKey = parsed.Phase ?? string.Empty;
+                if (phaseKey != lastLoggedPhase || bucket != lastLoggedBucket)
+                {
+                    lastLoggedPhase = phaseKey;
+                    lastLoggedBucket = bucket;
+                    _log.Info(parsed.StatusText ?? o.Line);
                 }
 
                 try
@@ -566,6 +672,7 @@ public sealed class MkPfsService : IMkPfsService
             }
             else
             {
+                _log.Info(o.Line);
                 progress?.Report(new OperationProgress
                 {
                     Phase = "running",
@@ -896,43 +1003,47 @@ public sealed class MkPfsService : IMkPfsService
             });
         }
 
+        // Attach as soon as the child starts — waiting until WaitForExit returns is too late.
+        var monitored = request;
+        if (monitored.OnStarted is null)
+        {
+            monitored = new ProcessStartRequest
+            {
+                Executable = request.Executable,
+                Arguments = request.Arguments,
+                WorkingDirectory = request.WorkingDirectory,
+                Environment = request.Environment,
+                Timeout = request.Timeout,
+                Priority = request.Priority,
+                ProcessorAffinity = request.ProcessorAffinity,
+                OnStarted = pid => _monitor.Attach(pid)
+            };
+        }
+        else
+        {
+            var prior = monitored.OnStarted;
+            monitored = new ProcessStartRequest
+            {
+                Executable = request.Executable,
+                Arguments = request.Arguments,
+                WorkingDirectory = request.WorkingDirectory,
+                Environment = request.Environment,
+                Timeout = request.Timeout,
+                Priority = request.Priority,
+                ProcessorAffinity = request.ProcessorAffinity,
+                OnStarted = pid =>
+                {
+                    _monitor.Attach(pid);
+                    prior(pid);
+                }
+            };
+        }
+
         _monitor.Updated += OnMonitor;
         await _monitor.StartAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var runTask = _runner.RunAsync(request, processProgress, cancellationToken);
-            _ = Task.Run(async () =>
-            {
-                for (var i = 0; i < 50 && !cancellationToken.IsCancellationRequested; i++)
-                {
-                    try
-                    {
-                        var procs = System.Diagnostics.Process.GetProcessesByName("mkpfs")
-                            .Concat(System.Diagnostics.Process.GetProcessesByName("python"))
-                            .Concat(System.Diagnostics.Process.GetProcessesByName("python3"));
-                        var newest = procs.OrderByDescending(p =>
-                        {
-                            try { return p.StartTime; } catch { return DateTime.MinValue; }
-                        }).FirstOrDefault();
-                        if (newest != null)
-                        {
-                            _monitor.Attach(newest.Id);
-                            break;
-                        }
-                    }
-                    catch { /* ignore */ }
-
-                    await Task.Delay(200, cancellationToken).ConfigureAwait(false);
-                }
-            }, cancellationToken);
-
-            var result = await runTask.ConfigureAwait(false);
-            if (result.ProcessId is { } pid)
-            {
-                _monitor.Attach(pid);
-            }
-
-            return result;
+            return await _runner.RunAsync(monitored, processProgress, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctl="clr-namespace:PS5Craft.App.Controls"
-        Title="PS5Craft v1.1 — PS5 Game Package Tool"
+        Title="PS5Craft — PS5 Game Package Tool"
         Icon="pack://application:,,,/Assets/app.ico"
         Width="1536" Height="1024"
         MinWidth="1200" MinHeight="700"
@@ -544,7 +544,7 @@
                     </Style>
                   </WrapPanel.Resources>
                   <CheckBox Content="Сжатие" IsChecked="{Binding CompressEnabled}"
-                            ToolTip="Для FFPFSC: PFSC-сжатие. Если снять галочку, PS5Craft обходит баг MkPFS (pack folder --no-compress всё равно сжимал) через pack exfat → pack file --no-compress."
+                            ToolTip="Для FFPFSC: PFSC поверх внутреннего exFAT (как у рабочего EXFAT, плюс сжатие). Снимите галочку, чтобы собрать обёртку без PFSC."
                             Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
                   <CheckBox Content="Не сжимать исполняемые файлы" IsChecked="{Binding SkipExecutableCompression}"
                             Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
@@ -645,18 +645,24 @@
               <Grid Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="52" />
+                  <ColumnDefinition Width="Auto" MinWidth="52" />
                 </Grid.ColumnDefinitions>
                 <Grid>
                   <ProgressBar AutomationProperties.AutomationId="MainProgress"
                                Value="{Binding ProgressPercent}" Maximum="100"
-                               IsIndeterminate="{Binding IsProgressIndeterminate}" />
+                               IsIndeterminate="{Binding IsProgressIndeterminate}"
+                               Visibility="{Binding IsCompressionResult, Converter={StaticResource InvBoolVis}}" />
+                  <ProgressBar Style="{StaticResource CompressionResultProgressBar}"
+                               Value="{Binding CompressionFillPercent}" Maximum="100"
+                               IsIndeterminate="False"
+                               Visibility="{Binding IsCompressionResult, Converter={StaticResource BoolVis}}" />
                   <ProgressBar Style="{StaticResource VerifyOverlayProgressBar}"
                                Value="{Binding VerifyProgressPercent}" Maximum="100"
                                IsHitTestVisible="False"
                                Visibility="{Binding IsVerifying, Converter={StaticResource BoolVis}}" />
                 </Grid>
                 <TextBlock Grid.Column="1" Text="{Binding ProgressPercentText}" FontSize="13"
+                           Margin="10,0,0,0"
                            HorizontalAlignment="Right" VerticalAlignment="Center">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -664,6 +670,9 @@
                       <Style.Triggers>
                         <DataTrigger Binding="{Binding IsVerifying}" Value="True">
                           <Setter Property="Foreground" Value="#C4A8FF" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsCompressionResult}" Value="True">
+                          <Setter Property="Foreground" Value="#5EE7FF" />
                         </DataTrigger>
                       </Style.Triggers>
                     </Style>
@@ -677,24 +686,64 @@
 
               <DockPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
                 <TextBlock DockPanel.Dock="Right" FontSize="13" Foreground="#CFE0F2" Margin="20,0,52,0">
-                  <Run Text="Размер: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding SizeText, Mode=OneWay}" />
-                  <Run Text="     Скорость: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding SpeedText, Mode=OneWay}" />
-                  <Run Text="     Осталось: " Foreground="{StaticResource BrushMuted}" /><Run Text="{Binding EtaText, Mode=OneWay}" />
-                </TextBlock>
-                <TextBlock FontSize="13" Foreground="#CFE0F2" TextTrimming="CharacterEllipsis" ToolTip="{Binding CurrentFile}">
                   <Run>
                     <Run.Style>
                       <Style TargetType="Run">
-                        <Setter Property="Text" Value="Извлечение:   " />
+                        <Setter Property="Text" Value="Размер: " />
                         <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
                         <Style.Triggers>
-                          <DataTrigger Binding="{Binding CurrentPage}" Value="Pack">
-                            <Setter Property="Text" Value="Сжатие:   " />
+                          <DataTrigger Binding="{Binding IsCompressionResult}" Value="True">
+                            <Setter Property="Text" Value="Образ: " />
                           </DataTrigger>
                         </Style.Triggers>
                       </Style>
                     </Run.Style>
-                  </Run><Run Text="{Binding CurrentFile, Mode=OneWay}" />
+                  </Run><Run Text="{Binding SizeText, Mode=OneWay}" />
+                  <Run>
+                    <Run.Style>
+                      <Style TargetType="Run">
+                        <Setter Property="Text" Value="     Скорость: " />
+                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsCompressionResult}" Value="True">
+                            <Setter Property="Text" Value="     Сжато на: " />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Run.Style>
+                  </Run><Run Text="{Binding SpeedText, Mode=OneWay}">
+                    <Run.Style>
+                      <Style TargetType="Run">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsCompressionResult}" Value="True">
+                            <Setter Property="Foreground" Value="#5EE7FF" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Run.Style>
+                  </Run>
+                  <Run>
+                    <Run.Style>
+                      <Style TargetType="Run">
+                        <Setter Property="Text" Value="     Осталось: " />
+                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsCompressionResult}" Value="True">
+                            <Setter Property="Text" Value="     Экономия: " />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Run.Style>
+                  </Run><Run Text="{Binding EtaText, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock FontSize="13" Foreground="#CFE0F2" TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding CurrentFile}">
+                  <TextBlock.Text>
+                    <MultiBinding StringFormat="{}{0} {1}">
+                      <Binding Path="ProgressActionLabel" Mode="OneWay" />
+                      <Binding Path="CurrentFile" Mode="OneWay" />
+                    </MultiBinding>
+                  </TextBlock.Text>
                 </TextBlock>
               </DockPanel>
             </Grid>

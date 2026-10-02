@@ -182,7 +182,8 @@ public sealed class FpkgService : IFpkgService
                 Executable = exe,
                 Arguments = args,
                 Priority = MapPriority(settings.ProcessPriority),
-                Environment = new Dictionary<string, string> { ["FPKG_LANG"] = "en" }
+                Environment = new Dictionary<string, string> { ["FPKG_LANG"] = "en" },
+                OnStarted = pid => _monitor.Attach(pid)
             }, new Progress<ProcessOutput>(o =>
             {
                 _log.Info(o.Line);
@@ -194,12 +195,7 @@ public sealed class FpkgService : IFpkgService
                 }
             }), cancellationToken);
 
-            _ = AttachCliMonitorAsync(cancellationToken);
             result = await runTask.ConfigureAwait(false);
-            if (result.ProcessId is { } pid)
-            {
-                _monitor.Attach(pid);
-            }
         }
         catch (Exception ex)
         {

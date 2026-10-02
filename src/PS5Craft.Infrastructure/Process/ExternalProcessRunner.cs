@@ -74,6 +74,15 @@ public sealed class ExternalProcessRunner : IExternalProcessRunner
         }
 
         var pid = process.Id;
+        try
+        {
+            request.OnStarted?.Invoke(pid);
+        }
+        catch
+        {
+            // Monitoring hooks must not fail the pack.
+        }
+
         using var timeoutCts = request.Timeout is { } t
             ? new CancellationTokenSource(t)
             : new CancellationTokenSource();

@@ -9,6 +9,7 @@ using PS5Craft.Core;
 using PS5Craft.Core.Abstractions;
 using PS5Craft.Core.Models;
 using PS5Craft.Services;
+using PS5Craft.Services.Parsing;
 
 namespace PS5Craft.ViewModels;
 
@@ -131,7 +132,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _progressPercentText = "0%";
     [ObservableProperty] private double _verifyProgressPercent;
     [ObservableProperty] private bool _isVerifying;
+    [ObservableProperty] private bool _isCompressionResult;
+    /// <summary>Compressed/original ratio (0–100) for the result bar fill.</summary>
+    [ObservableProperty] private double _compressionFillPercent;
     [ObservableProperty] private string _progressPhase = string.Empty;
+    [ObservableProperty] private string _progressActionLabel = "Извлечение:";
     [ObservableProperty] private string _currentFile = "—";
     [ObservableProperty] private string _sizeText = "—";
     [ObservableProperty] private string _speedText = "—";
@@ -202,7 +207,7 @@ public partial class MainViewModel : ObservableObject
             : value.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
                 ? "EXFAT: сырой образ без PFSC-сжатия. Содержимое папки копируется как есть — если игра использует AMPR, fakelib/libSceAmpr.sprx остаётся в образе."
                 : value.Equals("FFPFSC", StringComparison.OrdinalIgnoreCase)
-                    ? "FFPFSC: двухпроходная сборка — несжатый pfs_image.dat (--raw --no-compress), затем сжатие обёртки (pack file). Нужно место под оба файла. Если EXFAT запускается, а FFPFSC нет — для AMPR оставляйте EXFAT."
+                    ? "FFPFSC: двухпроходная сборка — сначала тот же exFAT, что уже запускается, затем PFSC-обёртка (pack file). Нужно место под оба файла на время сборки."
                     : string.Empty;
         SuggestPackOutput();
     }
@@ -233,6 +238,10 @@ public partial class MainViewModel : ObservableObject
         if (!IsBusy)
         {
             ProgressTitle = value == AppPage.Pack ? "Прогресс сжатия" : "Прогресс распаковки";
+            if (!IsBusy)
+            {
+                ProgressActionLabel = value == AppPage.Pack ? "Сжатие:" : "Извлечение:";
+            }
         }
     }
 
@@ -377,6 +386,7 @@ public partial class MainViewModel : ObservableObject
         ResultBanner = null;
         WorkflowStep = 1;
         ProgressTitle = "Прогресс распаковки";
+        ProgressActionLabel = "Извлечение:";
         ResetProgress("Распаковка…");
         try
         {
@@ -604,6 +614,9 @@ public partial class MainViewModel : ObservableObject
         ProgressTitle = SelectedOutputFormat.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
             ? "Прогресс упаковки"
             : "Прогресс сжатия";
+        ProgressActionLabel = SelectedOutputFormat.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
+            ? "Упаковка:"
+            : "Сжатие:";
         ResetProgress(SelectedOutputFormat.Equals("EXFAT", StringComparison.OrdinalIgnoreCase) ? "Упаковка…" : "Сжатие…");
         try
         {
@@ -953,7 +966,9 @@ public partial class MainViewModel : ObservableObject
             {
                 if (p.CpuUsage is { } cpu)
                 {
-                    CpuText = $"{cpu:0}%";
+                    CpuText = cpu < 1 && cpu > 0
+                        ? "<1%"
+                        : string.Create(CultureInfo.InvariantCulture, $"{cpu:0}%");
                 }
 
                 if (p.MemoryUsageBytes is { } ram)
@@ -972,7 +987,7 @@ public partial class MainViewModel : ObservableObject
             // Reports without a percentage (status lines, "running") keep the last real value.
             // MkPFS percents are already scaled to the whole job before they get here, so a finished
             // scan no longer pins the bar at 100%. Out-of-order callbacks still cannot move it backwards.
-            var isVerify = string.Equals(p.Phase, "verify", StringComparison.OrdinalIgnoreCase);
+            var isVerify = MkPfsProgressParser.IsVerifyPhase(p.Phase);
             if (isVerify)
             {
                 // Keep the green bar at the finished compression value; drive a violet overlay for verify.
@@ -980,28 +995,39 @@ public partial class MainViewModel : ObservableObject
                 {
                     IsVerifying = true;
                     VerifyProgressPercent = 0;
+                    ProgressTitle = "Прогресс проверки";
+                    ProgressActionLabel = "Проверка:";
                     if (ProgressPercent < 100 && _hasRealPercent)
                     {
                         ProgressPercent = 100;
                     }
                 }
 
+                ProgressActionLabel = string.Equals(
+                    MkPfsProgressParser.LocalizePhase(p.Phase), "сравнение", StringComparison.Ordinal)
+                    ? "Сравнение:"
+                    : "Проверка:";
+
                 if (p.Percent is { } verifyPct)
                 {
                     _hasRealPercent = true;
-                    VerifyProgressPercent = Math.Max(VerifyProgressPercent, verifyPct);
+                    // Monotonic within the combined verify+compare range (0–100), never jump to 100 early.
+                    VerifyProgressPercent = Math.Max(VerifyProgressPercent, Math.Clamp(verifyPct, 0, 100));
                     ProgressPercentText = string.Create(CultureInfo.InvariantCulture, $"{VerifyProgressPercent:0}%");
                 }
 
                 IsProgressIndeterminate = false;
             }
-            else
+            else if (!string.Equals(p.Phase, "running", StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(p.Phase, "monitor", StringComparison.OrdinalIgnoreCase) &&
+                     !string.IsNullOrWhiteSpace(p.Phase))
             {
-                if (IsVerifying && !string.IsNullOrWhiteSpace(p.Phase) &&
-                    !string.Equals(p.Phase, "monitor", StringComparison.OrdinalIgnoreCase))
+                // Real non-verify phase (compress/write/…). Ignore "running" chatter so compare
+                // is not marked 100% while MkPFS is still printing progress.
+                if (IsVerifying)
                 {
-                    // Left the verify phase (done / next step).
                     VerifyProgressPercent = Math.Max(VerifyProgressPercent, 100);
+                    IsVerifying = false;
                 }
 
                 if (p.Percent is { } pctVal)
@@ -1011,11 +1037,30 @@ public partial class MainViewModel : ObservableObject
                     ProgressPercentText = string.Create(CultureInfo.InvariantCulture, $"{ProgressPercent:0}%");
                 }
 
+                // Keep the status prefix in sync with the current MkPFS phase (exfat vs compress…).
+                var phaseLabel = MkPfsProgressParser.LocalizePhase(p.Phase);
+                ProgressActionLabel = phaseLabel switch
+                {
+                    "exfat" => "exFAT:",
+                    "сжатие" => "Сжатие:",
+                    "сканирование" => "Сканирование:",
+                    "запись" => "Запись:",
+                    "проверка" => "Проверка:",
+                    "сравнение" => "Сравнение:",
+                    _ when CurrentPage == AppPage.Pack => ProgressActionLabel,
+                    _ => ProgressActionLabel
+                };
+
                 IsProgressIndeterminate = !_hasRealPercent;
                 if (!_hasRealPercent)
                 {
                     ProgressPercentText = "…";
                 }
+            }
+            else
+            {
+                // "running" / empty / monitor: keep bars as-is; still allow status text updates below.
+                IsProgressIndeterminate = !_hasRealPercent && !IsVerifying;
             }
 
             ProgressPhase = p.Phase ?? ProgressPhase;
@@ -1052,7 +1097,9 @@ public partial class MainViewModel : ObservableObject
 
             if (p.CpuUsage is { } c)
             {
-                CpuText = $"{c:0}%";
+                CpuText = c < 1 && c > 0
+                    ? "<1%"
+                    : string.Create(CultureInfo.InvariantCulture, $"{c:0}%");
             }
 
             if (p.MemoryUsageBytes is { } m)
@@ -1110,13 +1157,43 @@ public partial class MainViewModel : ObservableObject
         ResultBanner = string.Join("\n", lines);
         StatusMessage = result.Message ?? "Готово";
         IsProgressIndeterminate = false;
-        ProgressPercent = 100;
-        if (IsVerifying)
+        IsVerifying = false;
+        VerifyProgressPercent = 0;
+
+        // Pack finish: stats show compressed size / savings; bar goes to 100% so "done" is obvious.
+        if (CurrentPage == AppPage.Pack &&
+            result.OutputBytes is { } outBytes &&
+            result.InputBytes is { } inBytes and > 0)
         {
-            VerifyProgressPercent = 100;
+            var saved = Math.Max(0L, inBytes - outBytes);
+            var ratioPct = Math.Clamp(outBytes * 100.0 / inBytes, 0, 100);
+            SizeText = $"{FormatBytes(outBytes)} · было {FormatBytes(inBytes)}";
+            SpeedText = FormatBytes(saved);
+            EtaText = string.Create(CultureInfo.InvariantCulture, $"{100.0 - ratioPct:0.0}%");
+            OutputSizeText = FormatBytes(outBytes);
+            RatioText = string.Create(CultureInfo.InvariantCulture, $"{ratioPct:0.0}%");
+            // Cyan fill = compressed size vs original; green track = saved space. Label stays "Готово".
+            CompressionFillPercent = ratioPct;
+            ProgressPercent = 100;
+            ProgressPercentText = "Готово";
+            IsCompressionResult = true;
+            IsVerifying = false;
+            VerifyProgressPercent = 0;
+            ProgressTitle = "Результат сжатия";
+            ProgressActionLabel = "Готово:";
+            CurrentFile = result.Message?.TrimStart('✓', ' ').Trim() ?? "Сжатие завершено";
+            return;
         }
 
-        ProgressPercentText = "100%";
+        ProgressPercent = 100;
+        ProgressPercentText = "Готово";
+        IsCompressionResult = false;
+        CompressionFillPercent = 100;
+        if (result.OutputBytes is { } onlyOut)
+        {
+            SizeText = FormatBytes(onlyOut);
+            OutputSizeText = SizeText;
+        }
     }
 
     private void ResetProgress(string phase)
@@ -1127,6 +1204,8 @@ public partial class MainViewModel : ObservableObject
         ProgressPercentText = "0%";
         VerifyProgressPercent = 0;
         IsVerifying = false;
+        IsCompressionResult = false;
+        CompressionFillPercent = 0;
         ProgressPhase = phase;
         CurrentFile = "—";
         SizeText = SpeedText = EtaText = ElapsedText = CpuText = RamText = OutputSizeText = RatioText = "—";
