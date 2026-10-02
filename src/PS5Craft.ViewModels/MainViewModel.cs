@@ -8,6 +8,7 @@ using Microsoft.Win32;
 using PS5Craft.Core;
 using PS5Craft.Core.Abstractions;
 using PS5Craft.Core.Models;
+using PS5Craft.Services;
 
 namespace PS5Craft.ViewModels;
 
@@ -71,14 +72,24 @@ public partial class MainViewModel : ObservableObject
         CpuOptions = new ObservableCollection<string>(["Auto", "1", "2", "4", "6", "8", "12", "16", "24", "32"]);
         CompressionLevels = new ObservableCollection<string>(Enumerable.Range(0, 10).Select(i => i.ToString()));
         BlockSizes = new ObservableCollection<string>(["Auto", "16384", "32768", "65536"]);
-        OutputFormats = new ObservableCollection<string>(["FFPFSC", "FFPFS"]);
+        OutputFormats = new ObservableCollection<string>(["FFPFSC", "FFPFS", "EXFAT"]);
         Priorities = new ObservableCollection<string>(["Normal", "Below Normal", "Low"]);
+        AmprVersions = new ObservableCollection<string>(
+            AmprEmulator.ListAvailableBuilds().Select(b => b.Version));
+        if (AmprVersions.Count == 0)
+        {
+            foreach (var b in AmprEmulator.KnownBuilds)
+            {
+                AmprVersions.Add(b.Version);
+            }
+        }
 
         var s = _settings.Current;
         SelectedCpu = s.CpuCount == 0 ? "Auto" : s.CpuCount.ToString();
         SelectedCompressionLevel = s.CompressionLevel.ToString();
         SelectedBlockSize = string.IsNullOrWhiteSpace(s.BlockSize) ? "Auto" : (s.BlockSize.Equals("auto", StringComparison.OrdinalIgnoreCase) ? "Auto" : s.BlockSize);
-        SelectedOutputFormat = s.DefaultOutputFormat == OutputFormat.Ffpfs ? "FFPFS" : "FFPFSC";
+        SelectedOutputFormat = FormatToUi(s.DefaultOutputFormat);
+        SelectedAmprVersion = ResolveAmprVersion(s.AmprEmulatorVersion);
         SelectedPriority = s.ProcessPriority switch
         {
             ProcessPriorityChoice.Normal => "Normal",
@@ -108,6 +119,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<string> BlockSizes { get; }
     public ObservableCollection<string> OutputFormats { get; }
     public ObservableCollection<string> Priorities { get; }
+    public ObservableCollection<string> AmprVersions { get; }
 
     [ObservableProperty] private AppPage _currentPage = AppPage.Extract;
     [ObservableProperty] private string _statusMessage = "Готово";
@@ -117,6 +129,8 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private double _progressPercent;
     [ObservableProperty] private string _progressPercentText = "0%";
+    [ObservableProperty] private double _verifyProgressPercent;
+    [ObservableProperty] private bool _isVerifying;
     [ObservableProperty] private string _progressPhase = string.Empty;
     [ObservableProperty] private string _currentFile = "—";
     [ObservableProperty] private string _sizeText = "—";
@@ -148,7 +162,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _selectedCompressionLevel = "7";
     [ObservableProperty] private string _selectedBlockSize = "Auto";
     [ObservableProperty] private string _selectedOutputFormat = "FFPFSC";
+    [ObservableProperty] private string _selectedAmprVersion = AmprEmulator.DefaultVersion;
     [ObservableProperty] private string _selectedPriority = "Below Normal";
+    [ObservableProperty] private string _amprVersionHint = string.Empty;
 
     [ObservableProperty] private GameInfo _game = GameInfo.Unknown();
     [ObservableProperty] private BitmapImage? _coverImage;
@@ -176,12 +192,32 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _pythonPathSetting = string.Empty;
     [ObservableProperty] private string _fpkgCliPathSetting = string.Empty;
     [ObservableProperty] private string? _resultBanner;
+    [ObservableProperty] private bool _isPfscPackFormat = true;
 
     partial void OnSelectedOutputFormatChanged(string value)
     {
+        IsPfscPackFormat = !value.Equals("EXFAT", StringComparison.OrdinalIgnoreCase);
         FormatWarning = value.Equals("FFPFS", StringComparison.OrdinalIgnoreCase)
             ? "⚠ FFPFS (--raw): при включённом сжатии консоль может некорректно читать файлы. Для бэкапов игр рекомендуется FFPFSC."
-            : string.Empty;
+            : value.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
+                ? "EXFAT: сырой образ без PFSC-сжатия. Содержимое папки копируется как есть — если игра использует AMPR, fakelib/libSceAmpr.sprx остаётся в образе."
+                : value.Equals("FFPFSC", StringComparison.OrdinalIgnoreCase)
+                    ? "FFPFSC: двухпроходная сборка — несжатый pfs_image.dat (--raw --no-compress), затем сжатие обёртки (pack file). Нужно место под оба файла. Если EXFAT запускается, а FFPFSC нет — для AMPR оставляйте EXFAT."
+                    : string.Empty;
+        SuggestPackOutput();
+    }
+
+    partial void OnSelectedAmprVersionChanged(string value)
+    {
+        var build = AmprEmulator.FindBuild(value);
+        AmprVersionHint = build?.Label ?? value;
+        var s = _settings.Current;
+        if (!string.Equals(s.AmprEmulatorVersion, value, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(value))
+        {
+            s.AmprEmulatorVersion = value;
+            _settings.Save(s);
+        }
     }
 
     partial void OnCurrentPageChanged(AppPage value)
@@ -274,8 +310,12 @@ public partial class MainViewModel : ObservableObject
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "PS5 Package (*.fpkg;*.pkg)|*.fpkg;*.pkg|All files (*.*)|*.*",
-            Title = "Выберите .fpkg / .pkg"
+            Filter =
+                "Игра / образ|*.fpkg;*.pkg;*.exfat;*.ffpfsc;*.ffpfs;*.ffpkg|" +
+                "FPKG / PKG (*.fpkg;*.pkg)|*.fpkg;*.pkg|" +
+                "exFAT / MkPFS (*.exfat;*.ffpfsc;*.ffpfs;*.ffpkg)|*.exfat;*.ffpfsc;*.ffpfs;*.ffpkg|" +
+                "All files (*.*)|*.*",
+            Title = "Выберите .fpkg / .pkg / .exfat / .ffpfsc"
         };
         if (dlg.ShowDialog() == true)
         {
@@ -312,7 +352,9 @@ public partial class MainViewModel : ObservableObject
         {
             Filter = SelectedOutputFormat.Equals("FFPFS", StringComparison.OrdinalIgnoreCase)
                 ? "FFPFS (*.ffpfs)|*.ffpfs"
-                : "FFPFSC (*.ffpfsc)|*.ffpfsc",
+                : SelectedOutputFormat.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
+                    ? "exFAT (*.exfat)|*.exfat"
+                    : "FFPFSC (*.ffpfsc)|*.ffpfsc",
             Title = "Выходной образ",
             FileName = Path.GetFileName(PackOutputPath)
         };
@@ -338,25 +380,45 @@ public partial class MainViewModel : ObservableObject
         ResetProgress("Распаковка…");
         try
         {
-            var settings = new ExtractionSettings
+            OperationResult result;
+            if (IsMkPfsImagePath(PackagePath))
             {
-                PackagePath = PackagePath,
-                OutputFolder = ExtractOutputFolder,
-                VerifyAfterExtraction = VerifyAfterExtract,
-                ExtractCoverAndMetadata = ExtractCoverAndMetadata,
-                RemovePackageOnlyFiles = RemovePackageOnlyFiles,
-                TempFolder = _settings.TempDirectory,
-                ProcessPriority = MapPriority(SelectedPriority)
-            };
+                _log.Info("Распаковка образа MkPFS/exFAT: " + PackagePath);
+                Directory.CreateDirectory(ExtractOutputFolder);
+                result = await _mkpfs.UnpackAsync(PackagePath, ExtractOutputFolder, deep: true, _cts.Token);
+                if (result.Success && RemovePackageOnlyFiles)
+                {
+                    var removed = await Task.Run(() => PackageOnlyFiles.Remove(ExtractOutputFolder), _cts.Token);
+                    foreach (var path in removed)
+                    {
+                        _log.Info("Удалён файл пакета: " + path);
+                    }
+                }
+            }
+            else
+            {
+                var settings = new ExtractionSettings
+                {
+                    PackagePath = PackagePath,
+                    OutputFolder = ExtractOutputFolder,
+                    VerifyAfterExtraction = VerifyAfterExtract,
+                    ExtractCoverAndMetadata = ExtractCoverAndMetadata,
+                    RemovePackageOnlyFiles = RemovePackageOnlyFiles,
+                    TempFolder = _settings.TempDirectory,
+                    ProcessPriority = MapPriority(SelectedPriority)
+                };
+                result = await _fpkg.ExtractAsync(settings, new Progress<OperationProgress>(ApplyProgress), _cts.Token);
+            }
 
-            var result = await _fpkg.ExtractAsync(settings, new Progress<OperationProgress>(ApplyProgress), _cts.Token);
             HandleResult(result);
             if (result.Success)
             {
                 PackSourceFolder = result.OutputPath ?? ExtractOutputFolder;
+                await OfferAmprEmulatorAsync(PackSourceFolder, _cts.Token);
                 SuggestPackOutput();
                 WorkflowStep = 2;
                 CurrentPage = AppPage.Pack;
+                _ = LoadFolderMetadataAsync(PackSourceFolder);
             }
         }
         catch (Exception ex)
@@ -373,6 +435,122 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private async Task OfferAmprEmulatorAsync(string gameRoot, CancellationToken cancellationToken)
+    {
+        AmprStatus status;
+        try
+        {
+            status = await Task.Run(() => AmprEmulator.Inspect(gameRoot, cancellationToken), cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Warning($"AMPR: не удалось проверить eboot.bin — {ex.Message}");
+            return;
+        }
+
+        if (!status.EbootImportsAmpr)
+        {
+            return;
+        }
+
+        var version = ResolveAmprVersion(SelectedAmprVersion);
+        var build = AmprEmulator.FindBuild(version);
+        if (build is null)
+        {
+            _log.Error($"AMPR: неизвестная версия «{version}».");
+            return;
+        }
+
+        var bundled = AmprEmulator.FindBundledModule(build.Version);
+        if (bundled is null)
+        {
+            _log.Error($"AMPR: в комплекте не найден tools\\ampr_emu\\{build.Version}\\{AmprEmulator.ModuleName}.");
+            return;
+        }
+
+        var matchesSelected = status.ModulePresent &&
+                              status.PresentSha256 is not null &&
+                              status.PresentSha256.Equals(build.Sha256, StringComparison.OrdinalIgnoreCase);
+
+        if (matchesSelected)
+        {
+            _log.Info($"AMPR: игра использует libSceAmpr, {AmprEmulator.ModuleRelativePath} уже версии {build.Version}.");
+            return;
+        }
+
+        var overwrite = status.ModulePresent;
+        if (overwrite)
+        {
+            _log.Warning(
+                $"AMPR: в папке уже есть {AmprEmulator.ModuleRelativePath} " +
+                $"(версия {status.PresentVersion ?? "?"}), выбранная — {build.Version}.");
+        }
+        else
+        {
+            _log.Warning(
+                $"AMPR: eboot.bin импортирует libSceAmpr, но {AmprEmulator.ModuleRelativePath} отсутствует " +
+                "(его удаляют при сборке FPKG).");
+        }
+
+        var handler = ConfirmRequired;
+        if (handler is null)
+        {
+            _log.Warning("AMPR: эмулятор не добавлен (нет подтверждения пользователя).");
+            return;
+        }
+
+        var message = overwrite
+            ? $"Игра использует AMPR. В fakelib уже есть эмулятор версии {status.PresentVersion ?? "unknown"}.\n\n" +
+              $"Заменить на ampr_emu {build.Version}?\n" +
+              $"{build.Label}\ndrakmor, GPL-3.0, {AmprEmulator.SourceUrl}\n\n" +
+              "После замены ampr_emu.index будет пересоздан при упаковке."
+            : "Игра использует AMPR (eboot.bin импортирует libSceAmpr), а в папке нет эмулятора.\n\n" +
+              $"Добавить {AmprEmulator.ModuleRelativePath} версии {build.Version}?\n" +
+              $"{build.Label}\ndrakmor, GPL-3.0, {AmprEmulator.SourceUrl}\n\n" +
+              "Версию можно сменить в списке «AMPR» на странице упаковки.\n" +
+              "ampr_emu.index создаст MkPFS при сборке образа.";
+
+        var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        handler.Invoke(this, (
+            "AMPR-эмулятор",
+            message,
+            overwrite ? "Заменить" : "Добавить",
+            answer));
+        if (!await answer.Task)
+        {
+            _log.Info($"AMPR: пользователь отказался, {AmprEmulator.ModuleRelativePath} не изменён.");
+            return;
+        }
+
+        try
+        {
+            var target = AmprEmulator.Restore(gameRoot, bundled, build, overwrite);
+            _log.Success($"AMPR: {(overwrite ? "заменён" : "добавлен")} {target} (ampr_emu {build.Version}, SHA-256 {build.Sha256}).");
+            StatusMessage = $"AMPR {build.Version}: {AmprEmulator.ModuleRelativePath}";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            _log.Error($"AMPR: эмулятор не добавлен — {ex.Message}");
+            ResultBanner = "AMPR-эмулятор не добавлен: " + ex.Message;
+        }
+    }
+
+    private string ResolveAmprVersion(string? preferred)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred) &&
+            AmprVersions.Any(v => v.Equals(preferred, StringComparison.OrdinalIgnoreCase)))
+        {
+            return preferred;
+        }
+
+        if (AmprVersions.Contains(AmprEmulator.DefaultVersion))
+        {
+            return AmprEmulator.DefaultVersion;
+        }
+
+        return AmprVersions.FirstOrDefault() ?? AmprEmulator.DefaultVersion;
+    }
+
     private bool CanRunExtract() => !IsBusy && File.Exists(PackagePath) && !string.IsNullOrWhiteSpace(ExtractOutputFolder);
 
     [RelayCommand(CanExecute = nameof(CanRunPack))]
@@ -381,6 +559,11 @@ public partial class MainViewModel : ObservableObject
         if (IsBusy)
         {
             return;
+        }
+
+        if (Directory.Exists(PackSourceFolder))
+        {
+            await OfferAmprEmulatorAsync(PackSourceFolder, CancellationToken.None);
         }
 
         if (File.Exists(PackOutputPath))
@@ -418,15 +601,17 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         ResultBanner = null;
         WorkflowStep = 3;
-        ProgressTitle = "Прогресс сжатия";
-        ResetProgress("Сжатие…");
+        ProgressTitle = SelectedOutputFormat.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
+            ? "Прогресс упаковки"
+            : "Прогресс сжатия";
+        ResetProgress(SelectedOutputFormat.Equals("EXFAT", StringComparison.OrdinalIgnoreCase) ? "Упаковка…" : "Сжатие…");
         try
         {
             var settings = new CompressionSettings
             {
                 SourceFolder = PackSourceFolder,
                 OutputPath = PackOutputPath,
-                Format = SelectedOutputFormat.Equals("FFPFS", StringComparison.OrdinalIgnoreCase) ? OutputFormat.Ffpfs : OutputFormat.Ffpfsc,
+                Format = UiToFormat(SelectedOutputFormat),
                 CpuCount = SelectedCpu.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? 0 : int.Parse(SelectedCpu),
                 CompressionLevel = int.Parse(SelectedCompressionLevel),
                 BlockSize = SelectedBlockSize.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? "auto" : SelectedBlockSize,
@@ -508,7 +693,7 @@ public partial class MainViewModel : ObservableObject
         s.CpuCount = SelectedCpu.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? 0 : int.Parse(SelectedCpu);
         s.CompressionLevel = int.Parse(SelectedCompressionLevel);
         s.BlockSize = SelectedBlockSize.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? "auto" : SelectedBlockSize;
-        s.DefaultOutputFormat = SelectedOutputFormat.Equals("FFPFS", StringComparison.OrdinalIgnoreCase) ? OutputFormat.Ffpfs : OutputFormat.Ffpfsc;
+        s.DefaultOutputFormat = UiToFormat(SelectedOutputFormat);
         s.ProcessPriority = MapPriority(SelectedPriority);
         s.VerifyAfterCompression = VerifyAfterPack;
         s.VerifyAfterExtraction = VerifyAfterExtract;
@@ -551,21 +736,35 @@ public partial class MainViewModel : ObservableObject
         _log.Info("Reading package information…");
         try
         {
-            Game = await _metadata.ReadFromPackageAsync(PackagePath);
-            ApplyGameToUi(Game);
-            _log.Info($"Title: {Game.Title}");
-            _log.Info($"Game ID: {Game.TitleId}");
-            if (!string.IsNullOrWhiteSpace(Game.Error))
+            if (IsMkPfsImagePath(PackagePath))
             {
-                _log.Warning(Game.Error);
+                Game = GameInfo.Unknown(PackagePath);
+                Game.Title = Path.GetFileNameWithoutExtension(PackagePath);
+                Game.CanExtract = true;
+                Game.KindLabel = Path.GetExtension(PackagePath).TrimStart('.').ToUpperInvariant();
+                ApplyGameToUi(Game);
+                ExtractAvailabilityText = "Образ MkPFS/exFAT → папка (через MkPFS unpack)";
+                StatusMessage = "Образ готов к распаковке";
+                _log.Info($"Image: {Game.Title} ({Game.KindLabel})");
             }
-
-            if (!Game.CanExtract && !string.IsNullOrWhiteSpace(Game.ExtractBlockedReason))
+            else
             {
-                _log.Warning(Game.ExtractBlockedReason);
-            }
+                Game = await _metadata.ReadFromPackageAsync(PackagePath);
+                ApplyGameToUi(Game);
+                _log.Info($"Title: {Game.Title}");
+                _log.Info($"Game ID: {Game.TitleId}");
+                if (!string.IsNullOrWhiteSpace(Game.Error))
+                {
+                    _log.Warning(Game.Error);
+                }
 
-            StatusMessage = Game.CanExtract ? "Пакет готов к распаковке" : "Пакет нельзя распаковать";
+                if (!Game.CanExtract && !string.IsNullOrWhiteSpace(Game.ExtractBlockedReason))
+                {
+                    _log.Warning(Game.ExtractBlockedReason);
+                }
+
+                StatusMessage = Game.CanExtract ? "Пакет готов к распаковке" : "Пакет нельзя распаковать";
+            }
         }
         catch (Exception ex)
         {
@@ -577,6 +776,20 @@ public partial class MainViewModel : ObservableObject
         {
             ExtractCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    private static bool IsMkPfsImagePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var ext = Path.GetExtension(path);
+        return ext.Equals(".exfat", StringComparison.OrdinalIgnoreCase)
+               || ext.Equals(".ffpfsc", StringComparison.OrdinalIgnoreCase)
+               || ext.Equals(".ffpfs", StringComparison.OrdinalIgnoreCase)
+               || ext.Equals(".ffpkg", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task LoadFolderMetadataAsync(string folder)
@@ -757,19 +970,54 @@ public partial class MainViewModel : ObservableObject
             }
 
             // Reports without a percentage (status lines, "running") keep the last real value.
-            // Progress<T> callbacks may arrive out of order, so the value never moves backwards within an operation.
-            if (p.Percent is { } pctVal)
+            // MkPFS percents are already scaled to the whole job before they get here, so a finished
+            // scan no longer pins the bar at 100%. Out-of-order callbacks still cannot move it backwards.
+            var isVerify = string.Equals(p.Phase, "verify", StringComparison.OrdinalIgnoreCase);
+            if (isVerify)
             {
-                _hasRealPercent = true;
-                ProgressPercent = Math.Max(ProgressPercent, pctVal);
-                ProgressPercentText = string.Create(CultureInfo.InvariantCulture, $"{ProgressPercent:0}%");
+                // Keep the green bar at the finished compression value; drive a violet overlay for verify.
+                if (!IsVerifying)
+                {
+                    IsVerifying = true;
+                    VerifyProgressPercent = 0;
+                    if (ProgressPercent < 100 && _hasRealPercent)
+                    {
+                        ProgressPercent = 100;
+                    }
+                }
+
+                if (p.Percent is { } verifyPct)
+                {
+                    _hasRealPercent = true;
+                    VerifyProgressPercent = Math.Max(VerifyProgressPercent, verifyPct);
+                    ProgressPercentText = string.Create(CultureInfo.InvariantCulture, $"{VerifyProgressPercent:0}%");
+                }
+
+                IsProgressIndeterminate = false;
+            }
+            else
+            {
+                if (IsVerifying && !string.IsNullOrWhiteSpace(p.Phase) &&
+                    !string.Equals(p.Phase, "monitor", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Left the verify phase (done / next step).
+                    VerifyProgressPercent = Math.Max(VerifyProgressPercent, 100);
+                }
+
+                if (p.Percent is { } pctVal)
+                {
+                    _hasRealPercent = true;
+                    ProgressPercent = Math.Max(ProgressPercent, pctVal);
+                    ProgressPercentText = string.Create(CultureInfo.InvariantCulture, $"{ProgressPercent:0}%");
+                }
+
+                IsProgressIndeterminate = !_hasRealPercent;
+                if (!_hasRealPercent)
+                {
+                    ProgressPercentText = "…";
+                }
             }
 
-            IsProgressIndeterminate = !_hasRealPercent;
-            if (!_hasRealPercent)
-            {
-                ProgressPercentText = "…";
-            }
             ProgressPhase = p.Phase ?? ProgressPhase;
             if (!string.IsNullOrWhiteSpace(p.CurrentFile))
             {
@@ -863,6 +1111,11 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = result.Message ?? "Готово";
         IsProgressIndeterminate = false;
         ProgressPercent = 100;
+        if (IsVerifying)
+        {
+            VerifyProgressPercent = 100;
+        }
+
         ProgressPercentText = "100%";
     }
 
@@ -872,6 +1125,8 @@ public partial class MainViewModel : ObservableObject
         IsProgressIndeterminate = true;
         ProgressPercent = 0;
         ProgressPercentText = "0%";
+        VerifyProgressPercent = 0;
+        IsVerifying = false;
         ProgressPhase = phase;
         CurrentFile = "—";
         SizeText = SpeedText = EtaText = ElapsedText = CpuText = RamText = OutputSizeText = RatioText = "—";
@@ -902,9 +1157,28 @@ public partial class MainViewModel : ObservableObject
 
         var parent = Directory.GetParent(PackSourceFolder)?.FullName ?? PackSourceFolder;
         var name = new DirectoryInfo(PackSourceFolder).Name.Replace("_Extracted", "", StringComparison.OrdinalIgnoreCase);
-        var ext = SelectedOutputFormat.Equals("FFPFS", StringComparison.OrdinalIgnoreCase) ? ".ffpfs" : ".ffpfsc";
+        var ext = UiToFormat(SelectedOutputFormat) switch
+        {
+            OutputFormat.Ffpfs => ".ffpfs",
+            OutputFormat.Exfat => ".exfat",
+            _ => ".ffpfsc"
+        };
         PackOutputPath = Path.Combine(parent, name + ext);
     }
+
+    private static string FormatToUi(OutputFormat format) => format switch
+    {
+        OutputFormat.Ffpfs => "FFPFS",
+        OutputFormat.Exfat => "EXFAT",
+        _ => "FFPFSC"
+    };
+
+    private static OutputFormat UiToFormat(string value) => value.ToUpperInvariant() switch
+    {
+        "FFPFS" => OutputFormat.Ffpfs,
+        "EXFAT" => OutputFormat.Exfat,
+        _ => OutputFormat.Ffpfsc
+    };
 
     private void PersistToolSettings()
     {

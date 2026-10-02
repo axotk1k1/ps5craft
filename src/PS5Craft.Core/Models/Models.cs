@@ -187,4 +187,6 @@ public sealed class AppSettings
     public string? PreferredConsoleEndpoint { get; set; }
     /// <summary>FTP destination on the console (etaHEN homebrew folder by default).</summary>
     public string ConsoleRemoteDirectory { get; set; } = "/data/etaHEN/homebrew";
+    /// <summary>Pinned ampr_emu release folder under tools/ampr_emu/&lt;version&gt;/ (e.g. 0.3.6.6).</summary>
+    public string AmprEmulatorVersion { get; set; } = "0.3.6.6";
 }

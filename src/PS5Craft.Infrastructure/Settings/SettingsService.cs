@@ -150,6 +150,11 @@ public sealed class SettingsService : ISettingsService
         PreferredConsoleEndpoint = s.PreferredConsoleEndpoint,
         ConsoleRemoteDirectory = string.IsNullOrWhiteSpace(s.ConsoleRemoteDirectory)
             ? "/data/etaHEN/homebrew"
-            : s.ConsoleRemoteDirectory
+            : s.ConsoleRemoteDirectory,
+        AmprEmulatorVersion = string.IsNullOrWhiteSpace(s.AmprEmulatorVersion)
+            ? AmprEmulatorDefaultVersion
+            : s.AmprEmulatorVersion
     };
+
+    private const string AmprEmulatorDefaultVersion = "0.3.6.6";
 }

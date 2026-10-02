@@ -13,9 +13,8 @@ public sealed class UsbExportService : IUsbExportService
 
     public string BuildDestinationPath(UsbDriveInfo drive, LibraryItem item)
     {
-        var safeTitle = SanitizeFolderName(string.IsNullOrWhiteSpace(item.Title) ? item.TitleId ?? "Game" : item.Title);
-        var dir = Path.Combine(drive.RootPath, "PS5Craft", "Games", safeTitle);
-        return Path.Combine(dir, item.FileName);
+        // Flat copy to the USB root (e.g. F:\game.ffpfsc) — no PS5Craft\Games subfolders.
+        return Path.Combine(drive.RootPath, item.FileName);
     }
 
     public async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken = default)
@@ -45,7 +44,11 @@ public sealed class UsbExportService : IUsbExportService
         }
 
         var dest = BuildDestinationPath(drive, item);
-        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        var destDir = Path.GetDirectoryName(dest);
+        if (!string.IsNullOrWhiteSpace(destDir))
+        {
+            Directory.CreateDirectory(destDir);
+        }
 
         if (File.Exists(dest) && !overwrite)
         {
@@ -179,17 +182,6 @@ public sealed class UsbExportService : IUsbExportService
         {
             return false;
         }
-    }
-
-    private static string SanitizeFolderName(string name)
-    {
-        foreach (var c in Path.GetInvalidFileNameChars())
-        {
-            name = name.Replace(c, '_');
-        }
-
-        name = name.Trim();
-        return string.IsNullOrWhiteSpace(name) ? "Game" : name;
     }
 
     private static string FormatGb(long bytes) => $"{bytes / (1024.0 * 1024 * 1024):0.##} GB";

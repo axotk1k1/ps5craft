@@ -16,7 +16,10 @@ public enum OutputFormat
     Ffpfsc,
 
     /// <summary>MkPFS pack folder --raw → direct PFS (.ffpfs). Compatibility warnings apply.</summary>
-    Ffpfs
+    Ffpfs,
+
+    /// <summary>MkPFS pack exfat → raw .exfat image (no PFSC). Folder contents, including AMPR/fakelib, stay as-is.</summary>
+    Exfat
 }
 
 public enum ProcessPriorityChoice

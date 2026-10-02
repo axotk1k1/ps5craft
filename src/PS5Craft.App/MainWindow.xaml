@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctl="clr-namespace:PS5Craft.App.Controls"
-        Title="PS5Craft v1.0 — PS5 Game Package Tool"
+        Title="PS5Craft v1.1 — PS5 Game Package Tool"
         Icon="pack://application:,,,/Assets/app.ico"
         Width="1536" Height="1024"
         MinWidth="1200" MinHeight="700"
@@ -161,7 +161,7 @@
               <Path Style="{StaticResource NavIcon}" Data="{StaticResource IconOpenBox}" Fill="#33FFFFFF" />
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Распаковка" Style="{StaticResource NavTitle}" />
-                <TextBlock Text=".fpkg → Папка" Style="{StaticResource NavSubtitle}" />
+                <TextBlock Text=".fpkg / .exfat → Папка" Style="{StaticResource NavSubtitle}" />
               </StackPanel>
             </StackPanel>
           </RadioButton>
@@ -171,7 +171,7 @@
               <Path Style="{StaticResource NavIcon}" Data="{StaticResource IconCube}" />
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Упаковка" Style="{StaticResource NavTitle}" />
-                <TextBlock Text="Папка → .ffpfs" Style="{StaticResource NavSubtitle}" />
+                <TextBlock Text="Папка → .ffpfsc / .exfat" Style="{StaticResource NavSubtitle}" />
               </StackPanel>
             </StackPanel>
           </RadioButton>
@@ -403,8 +403,8 @@
                       <MouseBinding Gesture="LeftClick" Command="{Binding NavigateCommand}" CommandParameter="extract" />
                     </HeaderedContentControl.InputBindings>
                     <StackPanel>
-                      <TextBlock Text="Распаковка .fpkg" Style="{StaticResource StepTitle}" />
-                      <TextBlock Text="Выберите папку для распаковки" Style="{StaticResource StepSubtitle}" />
+                      <TextBlock Text="Распаковка" Style="{StaticResource StepTitle}" />
+                      <TextBlock Text=".fpkg / .pkg / .exfat / .ffpfsc → папка" Style="{StaticResource StepSubtitle}" />
                     </StackPanel>
                   </HeaderedContentControl>
                   <HeaderedContentControl Grid.Column="1" Style="{StaticResource StepSegment}" Header="2" Cursor="Hand"
@@ -423,8 +423,8 @@
                       <MouseBinding Gesture="LeftClick" Command="{Binding NavigateCommand}" CommandParameter="pack" />
                     </HeaderedContentControl.InputBindings>
                     <StackPanel>
-                      <TextBlock Text="Упаковка в .ffpfs" Style="{StaticResource StepTitle}" />
-                      <TextBlock Text="Создание сжатого файла" Style="{StaticResource StepSubtitle}" />
+                      <TextBlock Text="Упаковка образа" Style="{StaticResource StepTitle}" />
+                      <TextBlock Text=".ffpfsc / .ffpfs / .exfat" Style="{StaticResource StepSubtitle}" />
                     </StackPanel>
                   </HeaderedContentControl>
                 </Grid>
@@ -446,22 +446,23 @@
                   <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="Файл .fpkg:" Style="{StaticResource FieldLabel}" />
+                <TextBlock Grid.Row="0" Text="Файл:" Style="{StaticResource FieldLabel}" />
                 <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackagePath, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackageCommand}" />
+                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackageCommand}"
+                        ToolTip=".fpkg / .pkg / .exfat / .ffpfsc / .ffpfs" />
 
                 <TextBlock Grid.Row="2" Text="Папка вывода:" Style="{StaticResource FieldLabel}" />
                 <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding ExtractOutputFolder, UpdateSourceTrigger=PropertyChanged}" />
                 <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowseExtractOutputCommand}" />
 
                 <Button Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Style="{StaticResource PrimaryAction}" Margin="20,0,0,0"
-                        Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="ExtractButton" AutomationProperties.Name="Распаковать .fpkg">
+                        Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="ExtractButton" AutomationProperties.Name="Распаковать">
                   <StackPanel Orientation="Horizontal">
                     <Path Data="{StaticResource IconOpenBox}" Stroke="White" StrokeThickness="1.8" Fill="#33FFFFFF" Width="40" Height="40"
                           Stretch="Uniform" StrokeLineJoin="Round" Margin="0,0,16,0" />
                     <StackPanel VerticalAlignment="Center">
-                      <TextBlock Text="Распаковать .fpkg" FontSize="18" FontWeight="SemiBold" />
-                      <TextBlock Text="В выбранную папку" FontSize="13" Foreground="#D6E8FF" />
+                      <TextBlock Text="Распаковать" FontSize="18" FontWeight="SemiBold" />
+                      <TextBlock Text=".fpkg / .exfat → папка" FontSize="13" Foreground="#D6E8FF" />
                     </StackPanel>
                   </StackPanel>
                 </Button>
@@ -517,12 +518,21 @@
                 <StackPanel x:Name="PackCombos" Grid.Row="3" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,12,0,0">
                   <TextBlock Text="Формат:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
                   <ComboBox ItemsSource="{Binding OutputFormats}" SelectedItem="{Binding SelectedOutputFormat}" MinWidth="100" Margin="0,0,18,0" />
-                  <TextBlock Text="CPU:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
-                  <ComboBox ItemsSource="{Binding CpuOptions}" SelectedItem="{Binding SelectedCpu}" MinWidth="90" Margin="0,0,18,0" />
-                  <TextBlock Text="Сжатие:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
-                  <ComboBox ItemsSource="{Binding CompressionLevels}" SelectedItem="{Binding SelectedCompressionLevel}" MinWidth="70" Margin="0,0,18,0" />
-                  <TextBlock Text="Блок:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
-                  <ComboBox ItemsSource="{Binding BlockSizes}" SelectedItem="{Binding SelectedBlockSize}" MinWidth="90" Margin="0,0,18,0" />
+                  <TextBlock Text="AMPR:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" ToolTip="Версия ampr_emu для fakelib/libSceAmpr.sprx. Разным играм нужны разные сборки." />
+                  <ComboBox ItemsSource="{Binding AmprVersions}" SelectedItem="{Binding SelectedAmprVersion}" MinWidth="100" Margin="0,0,18,0"
+                            ToolTip="{Binding AmprVersionHint}" />
+                  <TextBlock Text="CPU:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"
+                             Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <ComboBox ItemsSource="{Binding CpuOptions}" SelectedItem="{Binding SelectedCpu}" MinWidth="90" Margin="0,0,18,0"
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <TextBlock Text="Сжатие:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"
+                             Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <ComboBox ItemsSource="{Binding CompressionLevels}" SelectedItem="{Binding SelectedCompressionLevel}" MinWidth="70" Margin="0,0,18,0"
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <TextBlock Text="Блок:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"
+                             Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <ComboBox ItemsSource="{Binding BlockSizes}" SelectedItem="{Binding SelectedBlockSize}" MinWidth="90" Margin="0,0,18,0"
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
                   <TextBlock Text="Приоритет:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0" />
                   <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}" MinWidth="130" />
                 </StackPanel>
@@ -533,11 +543,16 @@
                       <Setter Property="Margin" Value="0,0,24,0" />
                     </Style>
                   </WrapPanel.Resources>
-                  <CheckBox Content="Сжатие" IsChecked="{Binding CompressEnabled}" />
-                  <CheckBox Content="Не сжимать исполняемые файлы" IsChecked="{Binding SkipExecutableCompression}" />
-                  <CheckBox Content="Проверить после упаковки" IsChecked="{Binding VerifyAfterPack}" />
+                  <CheckBox Content="Сжатие" IsChecked="{Binding CompressEnabled}"
+                            ToolTip="Для FFPFSC: PFSC-сжатие. Если снять галочку, PS5Craft обходит баг MkPFS (pack folder --no-compress всё равно сжимал) через pack exfat → pack file --no-compress."
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <CheckBox Content="Не сжимать исполняемые файлы" IsChecked="{Binding SkipExecutableCompression}"
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
+                  <CheckBox Content="Проверить после упаковки" IsChecked="{Binding VerifyAfterPack}"
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
                   <CheckBox Content="Подробный вывод" IsChecked="{Binding Verbose}" />
-                  <CheckBox Content="Пробный запуск" IsChecked="{Binding DryRun}" />
+                  <CheckBox Content="Пробный запуск" IsChecked="{Binding DryRun}"
+                            Visibility="{Binding IsPfscPackFormat, Converter={StaticResource BoolVis}}" />
                 </WrapPanel>
 
                 <Border Grid.Row="5" Grid.ColumnSpan="4" Margin="0,10,0,0" Background="#2A2208" BorderBrush="#6B5211" BorderThickness="1"
@@ -562,9 +577,10 @@
                   <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="Файл .fpkg:" Style="{StaticResource FieldLabel}" />
+                <TextBlock Grid.Row="0" Text="Файл:" Style="{StaticResource FieldLabel}" />
                 <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackagePath, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackageCommand}" />
+                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource FolderButton}" Margin="6,0,0,0" Command="{Binding BrowsePackageCommand}"
+                        ToolTip=".fpkg / .pkg / .exfat / .ffpfsc / .ffpfs" />
 
                 <TextBlock Grid.Row="2" Text="Папка игры:" Style="{StaticResource FieldLabel}" />
                 <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkTextBox}" Text="{Binding PackSourceFolder, UpdateSourceTrigger=PropertyChanged}" />
@@ -577,7 +593,7 @@
                           Stretch="Uniform" StrokeLineJoin="Round" Margin="0,0,16,0" />
                     <StackPanel VerticalAlignment="Center">
                       <TextBlock Text="К распаковке" FontSize="18" FontWeight="SemiBold" />
-                      <TextBlock Text="Шаг 1 — .fpkg → папка" FontSize="13" Foreground="#D6E8FF" />
+                      <TextBlock Text="Шаг 1 — .fpkg / .exfat → папка" FontSize="13" Foreground="#D6E8FF" />
                     </StackPanel>
                   </StackPanel>
                 </Button>
@@ -631,9 +647,28 @@
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="52" />
                 </Grid.ColumnDefinitions>
-                <ProgressBar AutomationProperties.AutomationId="MainProgress" Value="{Binding ProgressPercent}" Maximum="100" IsIndeterminate="{Binding IsProgressIndeterminate}" />
-                <TextBlock Grid.Column="1" Text="{Binding ProgressPercentText}" FontSize="13" Foreground="#CFE0F2"
-                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+                <Grid>
+                  <ProgressBar AutomationProperties.AutomationId="MainProgress"
+                               Value="{Binding ProgressPercent}" Maximum="100"
+                               IsIndeterminate="{Binding IsProgressIndeterminate}" />
+                  <ProgressBar Style="{StaticResource VerifyOverlayProgressBar}"
+                               Value="{Binding VerifyProgressPercent}" Maximum="100"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsVerifying, Converter={StaticResource BoolVis}}" />
+                </Grid>
+                <TextBlock Grid.Column="1" Text="{Binding ProgressPercentText}" FontSize="13"
+                           HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Foreground" Value="#CFE0F2" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsVerifying}" Value="True">
+                          <Setter Property="Foreground" Value="#C4A8FF" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
               </Grid>
 
               <Button Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Style="{StaticResource SecondaryButton}"
@@ -743,11 +778,12 @@
                       <Setter Property="Padding" Value="0" />
                       <Setter Property="Margin" Value="0,0,0,10" />
                       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                      <Setter Property="Foreground" Value="White" />
                       <Setter Property="Template">
                         <Setter.Value>
                           <ControlTemplate TargetType="ListBoxItem">
                             <Border x:Name="Bd" Background="#0C2138" BorderBrush="#16385C" BorderThickness="1" CornerRadius="8" Padding="12">
-                              <ContentPresenter />
+                              <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
                             </Border>
                             <ControlTemplate.Triggers>
                               <Trigger Property="IsSelected" Value="True">
@@ -776,7 +812,8 @@
                             <Image Source="{Binding CoverImage}" Stretch="UniformToFill" />
                           </Border>
                           <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" Foreground="White"
+                                       TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding TitleId}" Foreground="#A9BBCF" FontSize="13" Margin="0,2,0,0" />
                             <TextBlock Text="{Binding MetaLine}" Foreground="#CFE0F2" FontSize="13" Margin="0,2,0,0" />
                             <TextBlock FontSize="13" Foreground="#CFE0F2" Margin="0,2,0,0">

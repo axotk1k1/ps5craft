@@ -1,0 +1,17 @@
+AMPR userland emulator (ampr_emu) by drakmor — GNU GPL-3.0
+License text: LICENSE-ampr_emu.txt
+Source: https://github.com/drakmor/ampr_emu
+
+Unmodified binaries from upstream GitHub Releases, one folder per version:
+
+  0.3.6.6/libSceAmpr.sprx
+    Asset: https://github.com/drakmor/ampr_emu/releases/download/0.3.6.6/libSceAmpr.sprx-0.3.6.6-test
+    SHA-256: 362c84e31e3a06a42f50fe4d6ea124d15e73f77c901470f90823935d7f36ca76
+    Source tag: https://github.com/drakmor/ampr_emu/tree/0.3.6.6
+
+  0.4.2.1/libSceAmpr.sprx
+    Asset: https://github.com/drakmor/ampr_emu/releases/download/0.4.2.1/libSceAmpr.sprx
+    SHA-256: 69e6c4d5e4f5fb83c9e01815db5861c4c75734acbf4595cafa50d4c218116d1a
+    Source tag: https://github.com/drakmor/ampr_emu/tree/0.4.2.1
+
+Different titles may need different builds. PS5Craft lets the user pick a version before packing.

@@ -38,6 +38,22 @@ Consult the upstream repository for the full license text shipped with that proj
 
 ---
 
+## ampr_emu (libSceAmpr.sprx)
+
+- Project: https://github.com/drakmor/ampr_emu
+- Author: drakmor
+- License: GNU General Public License v3.0
+- Bundled binaries under `tools/ampr_emu/<version>/libSceAmpr.sprx` — unmodified upstream releases:
+  - 0.3.6.6 (SHA-256 362c84e31e3a06a42f50fe4d6ea124d15e73f77c901470f90823935d7f36ca76)
+  - 0.4.2.1 (SHA-256 69e6c4d5e4f5fb83c9e01815db5861c4c75734acbf4595cafa50d4c218116d1a)
+  License text: `tools/ampr_emu/LICENSE-ampr_emu.txt`; sources: https://github.com/drakmor/ampr_emu/tree/0.3.6.6 and
+  https://github.com/drakmor/ampr_emu/tree/0.4.2.1
+- Use in PS5Craft: after extraction / before packing, if `eboot.bin` imports libSceAmpr, the user can add or replace
+  `fakelib/libSceAmpr.sprx` with a chosen bundled version. Different titles may need different builds. PS5Craft does
+  not execute or modify the module.
+
+---
+
 ## CommunityToolkit.Mvvm / Microsoft.Extensions.DependencyInjection / Magick.NET / DokanNet / BCnEncoder.Net
 
 - Restored via NuGet with their respective MIT / Apache / LGPL package licenses.

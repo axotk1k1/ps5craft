@@ -107,12 +107,12 @@ public class LibraryServiceTests
 public class UsbExportTests
 {
     [Fact]
-    public void BuildDestinationPath_UsesDeterministicStructure()
+    public void BuildDestinationPath_CopiesToUsbRoot()
     {
         var export = new UsbExportService(new NullLog());
         var drive = new UsbDriveInfo { DriveLetter = "E:", FreeBytes = 100, TotalBytes = 200 };
         var item = new LibraryItem { Title = "007 First Light", FileName = "game.ffpfsc" };
-        Assert.Equal(@"E:\PS5Craft\Games\007 First Light\game.ffpfsc", export.BuildDestinationPath(drive, item));
+        Assert.Equal(@"E:\game.ffpfsc", export.BuildDestinationPath(drive, item));
     }
 
     [Fact]

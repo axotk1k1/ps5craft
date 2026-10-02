@@ -30,6 +30,7 @@
     <FpkgToolFiles Include="@(_FpkgAll)"
                    Exclude="$(ToolsRoot)fpkg\runtimes\linux-*\**\*;$(ToolsRoot)fpkg\runtimes\osx-*\**\*;$(ToolsRoot)fpkg\runtimes\win-arm64\**\*;$(ToolsRoot)fpkg\runtimes\win-x86\**\*" />
     <MkPfsToolFiles Include="$(ToolsRoot)mkpfs\**\*.*" />
+    <AmprToolFiles Include="$(ToolsRoot)ampr_emu\**\*.*" />
   </ItemGroup>
   <Target Name="CopyTools" AfterTargets="Build">
     <ItemGroup>
@@ -50,6 +51,10 @@
           DestinationFiles="@(MkPfsToolFiles->'$(OutDir)tools\mkpfs\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
           Condition="Exists('$(ToolsRoot)mkpfs\mkpfs.exe')" />
+    <Copy SourceFiles="@(AmprToolFiles)"
+          DestinationFiles="@(AmprToolFiles->'$(OutDir)tools\ampr_emu\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(AmprToolFiles)' != ''" />
     <Copy SourceFiles="@(UpdaterFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"
           Condition="'@(UpdaterFiles)' != ''" />
   </Target>
@@ -81,6 +86,10 @@
           DestinationFiles="@(MkPfsToolFiles->'$(PublishDir)tools\mkpfs\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
           Condition="Exists('$(ToolsRoot)mkpfs\mkpfs.exe')" />
+    <Copy SourceFiles="@(AmprToolFiles)"
+          DestinationFiles="@(AmprToolFiles->'$(PublishDir)tools\ampr_emu\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(AmprToolFiles)' != ''" />
     <Copy SourceFiles="@(UpdaterFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true"
           Condition="'@(UpdaterFiles)' != ''" />
     <Delete Files="@(_ForeignRuntimes)" TreatErrorsAsWarnings="true" />

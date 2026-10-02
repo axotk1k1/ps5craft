@@ -89,7 +89,12 @@ public sealed partial class LibraryItemViewModel : ObservableObject
         TitleId = Model.TitleId ?? "—";
         MetaLine = $"{Model.Console} • {Model.Region ?? "—"}";
         SizeText = FormatSize(Model.FileSizeBytes);
-        FormatText = Model.Format == OutputFormat.Ffpfs ? "FFPFS" : "FFPFSC";
+        FormatText = Model.Format switch
+        {
+            OutputFormat.Ffpfs => "FFPFS",
+            OutputFormat.Exfat => "EXFAT",
+            _ => "FFPFSC"
+        };
         StatusText = Model.StatusText;
         FilePath = Model.FilePath;
         CreatedText = Model.CreatedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
