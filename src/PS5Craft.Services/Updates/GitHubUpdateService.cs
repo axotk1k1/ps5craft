@@ -13,7 +13,11 @@ namespace PS5Craft.Services.Updates;
 public sealed class GitHubUpdateService : IUpdateService, IDisposable
 {
     public const string UserAgent = "PS5Craft-Updater";
-    public static readonly TimeSpan MinAutoCheckInterval = TimeSpan.FromHours(6);
+    /// <summary>
+    /// Minimum gap between non-forced checks. Startup and the Settings button use <c>force: true</c>,
+    /// so they always hit GitHub; this only limits accidental repeated background calls.
+    /// </summary>
+    public static readonly TimeSpan MinAutoCheckInterval = TimeSpan.Zero;
 
     private readonly HttpClient _http;
     private readonly ISettingsService _settings;

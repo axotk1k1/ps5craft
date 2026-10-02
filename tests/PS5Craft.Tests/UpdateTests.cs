@@ -244,8 +244,9 @@ public class GitHubUpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdates_RateLimited_Skips()
+    public async Task CheckForUpdates_AlwaysQueries_WhenIntervalDisabled()
     {
+        // MinAutoCheckInterval is Zero: every check (including non-forced) hits GitHub.
         var dir = Path.Combine(Path.GetTempPath(), "PS5Craft.Tests", Guid.NewGuid().ToString("N"));
         var settings = new SettingsService(dir);
         var s = settings.Current;
@@ -253,11 +254,26 @@ public class GitHubUpdateServiceTests
         settings.Save(s);
 
         var handler = new QueueHandler();
+        handler.EnqueueJson(HttpStatusCode.OK, """
+            {
+              "tag_name": "v1.0.0",
+              "draft": false,
+              "prerelease": false,
+              "assets": [
+                {
+                  "name": "PS5Craft-win-x64.zip",
+                  "size": 10,
+                  "browser_download_url": "https://github.com/axotk1k1/ps5craft/releases/download/v1.0.0/PS5Craft-win-x64.zip"
+                }
+              ]
+            }
+            """);
         using var http = new HttpClient(handler);
         using var svc = new GitHubUpdateService(settings, http, dir, () => new Version(1, 0, 0));
         var result = await svc.CheckForUpdatesAsync(force: false);
-        Assert.True(result.SkippedDueToRateLimit);
-        Assert.Equal(0, handler.RequestCount);
+        Assert.False(result.SkippedDueToRateLimit);
+        Assert.True(result.Succeeded);
+        Assert.Equal(1, handler.RequestCount);
         Directory.Delete(dir, recursive: true);
     }
 

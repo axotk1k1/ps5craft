@@ -52,7 +52,8 @@ public partial class MainViewModel
 
         try
         {
-            var result = await _updates.CheckForUpdatesAsync(force: false).ConfigureAwait(true);
+            // Always query GitHub on launch so a just-published release is offered immediately.
+            var result = await _updates.CheckForUpdatesAsync(force: true).ConfigureAwait(true);
             ApplyUpdateCheckResult(result, silentOnFailure: true, showDialogIfAvailable: true);
         }
         catch (OperationCanceledException)
