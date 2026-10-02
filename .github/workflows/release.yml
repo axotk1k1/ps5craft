@@ -72,7 +72,8 @@ jobs:
           if (-not (Test-Path (Join-Path $out "fpkg-cli.exe"))) { throw "fpkg-cli.exe missing after publish" }
 
       - name: Test
-        run: dotnet test PS5Craft.slnx -c Release --nologo
+        run: dotnet test tests/PS5Craft.Tests/PS5Craft.Tests.csproj -c Release --nologo -p:WarningLevel=3
+        # Test project only (not the whole .slnx) so WPF App is not built during CI test.
 
       # Framework-dependent keeps the ZIP small; users install .NET 10 Desktop Runtime once.
       # Pass -Version so the baked-in AppVersion matches the GitHub tag (updater uses tag > current).

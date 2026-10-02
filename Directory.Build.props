@@ -1,9 +1,9 @@
 <Project>
   <PropertyGroup>
     <!-- Single source of truth for PS5Craft semantic version (MAJOR.MINOR.PATCH). -->
-    <Version>1.3.0</Version>
-    <AssemblyVersion>1.3.0.0</AssemblyVersion>
-    <FileVersion>1.3.0.0</FileVersion>
+    <Version>1.3.1</Version>
+    <AssemblyVersion>1.3.1.0</AssemblyVersion>
+    <FileVersion>1.3.1.0</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>
     <Company>PS5Craft</Company>
     <Product>PS5Craft</Product>
