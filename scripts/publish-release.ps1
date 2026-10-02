@@ -3,13 +3,30 @@
 param(
     [string]$Configuration = "Release",
     [string]$Output = "$PSScriptRoot\..\publish\win-x64",
-    [string]$ZipPath = "$PSScriptRoot\..\PS5Craft-win-x64.zip"
+    [string]$ZipPath = "$PSScriptRoot\..\PS5Craft-win-x64.zip",
+    # Optional semantic version (e.g. 1.2.0). When set, overrides Directory.Build.props
+    # so the GitHub tag and the baked-in app version stay in sync for the updater.
+    [string]$Version = ""
 )
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
 $Output = [IO.Path]::GetFullPath($Output)
 $ZipPath = [IO.Path]::GetFullPath($ZipPath)
 $updaterOut = Join-Path $root "publish\updater"
+
+$versionArgs = @()
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+        throw "Version must be MAJOR.MINOR.PATCH, got: $Version"
+    }
+    Write-Host "==> Stamping assembly version $Version"
+    $versionArgs = @(
+        "-p:Version=$Version",
+        "-p:AssemblyVersion=$Version.0",
+        "-p:FileVersion=$Version.0",
+        "-p:InformationalVersion=$Version"
+    )
+}
 
 function Remove-ForeignRuntimes([string]$baseDir) {
     $runtimeRoots = @(
@@ -36,12 +53,14 @@ Write-Host "==> Publish PS5Craft (framework-dependent win-x64)"
 dotnet publish (Join-Path $root "src\PS5Craft.App\PS5Craft.App.csproj") `
     -c $Configuration -r win-x64 --self-contained false `
     -p:PublishReadyToRun=true `
+    @versionArgs `
     -o $Output
 if ($LASTEXITCODE -ne 0) { throw "publish app failed" }
 
 Write-Host "==> Publish updater (framework-dependent, tiny)"
 dotnet publish (Join-Path $root "src\PS5Craft.Updater\PS5Craft.Updater.csproj") `
     -c $Configuration -r win-x64 --self-contained false `
+    @versionArgs `
     -o $updaterOut
 if ($LASTEXITCODE -ne 0) { throw "publish updater failed" }
 

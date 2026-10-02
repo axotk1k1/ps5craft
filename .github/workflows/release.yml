@@ -40,11 +40,11 @@ jobs:
         run: dotnet test PS5Craft.slnx -c Release --nologo
 
       # Framework-dependent keeps the ZIP small; users install .NET 10 Desktop Runtime once.
+      # Pass -Version so the baked-in AppVersion matches the GitHub tag (updater uses tag > current).
       - name: Publish slim win-x64 package
         shell: pwsh
         run: |
-          ./scripts/publish-release.ps1 -Configuration Release
-          # Stamp version into already-published binaries via rebuild if needed
+          ./scripts/publish-release.ps1 -Configuration Release -Version "${{ steps.ver.outputs.version }}"
           (Get-Item PS5Craft-win-x64.zip).Length
           Get-Content PS5Craft-win-x64.zip.sha256
 
