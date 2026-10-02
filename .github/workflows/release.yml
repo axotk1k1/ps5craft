@@ -21,10 +21,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Compile-time dependency for FpkgService (local clones are gitignored as _refs/).
+      - name: Checkout PSVIETHOA FPKG Builder
+        uses: actions/checkout@v4
+        with:
+          repository: thanhsondev/PSVIETHOA-FPKG-Builder
+          ref: 4832a68077d427d831468d313733555172888b6d
+          path: _refs/PSVIETHOA-FPKG-Builder
+
+      # Source for bundled mkpfs.exe (GPL-3.0).
+      - name: Checkout MkPFS
+        uses: actions/checkout@v4
+        with:
+          repository: PSBrew/MkPFS
+          ref: 78eda0a0d1208fdf72a824c8a233b42c1f3542ae
+          path: _refs/MkPFS
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Resolve version
         id: ver
@@ -35,6 +56,20 @@ jobs:
           $ver = $tag.TrimStart('v')
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Build mkpfs.exe
+        shell: pwsh
+        run: ./scripts/build-mkpfs.ps1
+
+      - name: Publish fpkg-cli into tools/fpkg
+        shell: pwsh
+        run: |
+          $out = Join-Path $PWD "tools\fpkg"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          dotnet publish "_refs\PSVIETHOA-FPKG-Builder\src\PsViethoa.FpkgBuilder.Cli\PsViethoa.FpkgBuilder.Cli.csproj" `
+            -c Release -r win-x64 --self-contained false -o $out
+          if ($LASTEXITCODE -ne 0) { throw "fpkg-cli publish failed" }
+          if (-not (Test-Path (Join-Path $out "fpkg-cli.exe"))) { throw "fpkg-cli.exe missing after publish" }
 
       - name: Test
         run: dotnet test PS5Craft.slnx -c Release --nologo
