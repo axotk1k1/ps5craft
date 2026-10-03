@@ -17,6 +17,17 @@ public sealed class MkPfsService : IMkPfsService
     private readonly ILogService _log;
     private readonly IResourceMonitor _monitor;
 
+    /// <summary>
+    /// PFSC block compressor: stdlib <c>zlib</c>.
+    /// The PS5 decompresses PFSC blocks in hardware (ZCN inflater), which rejects some streams that
+    /// software zlib accepts, so <c>mkpfs verify</c> passes but the game crashes right after launch.
+    /// MkPFS issue #132 reproduced this on PPSA11386 (007 First Light): the <c>auto</c>-selected ISA-L
+    /// backend failed, and only <c>--compression-backend zlib</c> was confirmed to fix it. Our own
+    /// zlib-ng level-9 image of the same dump failed the same way, so stdlib zlib is the one backend
+    /// with a known-good result on this title. Slightly slower, smallest output.
+    /// </summary>
+    private const string CompressionBackend = "zlib";
+
     private string? _executable;
     private List<string> _prefixArgs = [];
 
@@ -123,29 +134,32 @@ public sealed class MkPfsService : IMkPfsService
             }
         }
 
-        // FFPFSC: two-pass exFAT → pack file (MkPFS Option 1 — maximum console compatibility).
-        // Nested raw PFS + PFSC (Option 5) verifies locally but often dies at splash when compressed.
-        if (settings.Format == OutputFormat.Ffpfsc)
-        {
-            return await PackFfpfscTwoPassAsync(settings, detect, progress, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
         WarnPackageOnlyLeftovers(settings.SourceFolder);
 
         var args = BuildPackArguments(settings);
+        if (settings.Format == OutputFormat.Ffpfsc)
+        {
+            // Same pipeline as PS5 FFPFSC PRO v1.3.0: one `pack folder` → exFAT-wrapped .ffpfsc.
+            // Explicit pack exfat → pack file produced images that failed to launch on console.
+            _log.Info(
+                $"FFPFSC: single-pass (pack folder → .ffpfsc)" +
+                $"{(settings.Compress ? " со сжатием PFSC" : " без сжатия")} — как PS5 FFPFSC PRO 1.3.0.");
+        }
+
         _log.Info("Starting MkPFS");
         _log.Info($"Version: {detect.Version}");
         _log.Info($"Source: {settings.SourceFolder}");
         _log.Info($"Output: {settings.OutputPath}");
         _log.Info($"Format: {settings.Format}");
         _log.Info($"Compress: {settings.Compress}");
+        _log.Info("MkPFS: " + FormatArgs(args));
         if (settings.Format != OutputFormat.Exfat)
         {
             _log.Info($"CPU count: {(settings.CpuCount == 0 ? "Auto" : settings.CpuCount.ToString())}");
             if (settings.Compress)
             {
                 _log.Info($"Compression level: {settings.CompressionLevel}");
+                _log.Info($"Compression backend: {CompressionBackend} (stdlib; единственный бэкенд с подтверждённым запуском PPSA11386 — MkPFS issue #132, аппаратный инфлятор PS5 отвергает блоки isal)");
             }
 
             _log.Info($"PS5 mode enabled: {settings.Version}");
@@ -178,254 +192,6 @@ public sealed class MkPfsService : IMkPfsService
             _log.Error(ex.Message);
             return OperationResult.Fail("Сжатие завершилось с ошибкой.", ex.ToString());
         }
-    }
-
-    /// <summary>
-    /// Build <c>.ffpfsc</c> the way MkPFS recommends for console backups: uncompressed exFAT of the
-    /// game folder, then <c>pack file</c> (optional PFSC). Nested raw PFS + PFSC (Option 5) often
-    /// passes local verify but fails at splash on compressed titles; exFAT→FFPFSC matches the layout
-    /// that already works when the user picks EXFAT alone.
-    /// </summary>
-    private async Task<OperationResult> PackFfpfscTwoPassAsync(
-        CompressionSettings settings,
-        ToolInfo detect,
-        IProgress<OperationProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        WarnPackageOnlyLeftovers(settings.SourceFolder);
-
-        var outputFull = Path.GetFullPath(settings.OutputPath);
-        var outputDir = Path.GetDirectoryName(outputFull)!;
-        Directory.CreateDirectory(outputDir);
-
-        // Same volume as the final image; renamed away before background delete.
-        var innerExfat = Path.Combine(
-            outputDir,
-            Path.GetFileNameWithoutExtension(outputFull) + ".inner.exfat");
-
-        var sw = Stopwatch.StartNew();
-        long inputBytes = EstimateFolderSize(settings.SourceFolder);
-
-        _log.Info(
-            $"FFPFSC: двухпроходная сборка (pack exfat → pack file)" +
-            $"{(settings.Compress ? " со сжатием PFSC" : " без сжатия")} — максимальная совместимость.");
-        _log.Info("Starting MkPFS (FFPFSC two-pass wrapper)");
-        _log.Info($"Version: {detect.Version}");
-        _log.Info($"Source: {settings.SourceFolder}");
-        _log.Info($"Output: {settings.OutputPath}");
-        _log.Info($"Inner exFAT: {innerExfat}");
-        _log.Info("Format: Ffpfsc");
-        _log.Info($"Compress: {settings.Compress}");
-        if (settings.Compress)
-        {
-            _log.Info($"CPU count: {(settings.CpuCount == 0 ? "Auto" : settings.CpuCount.ToString())}");
-            _log.Info($"Compression level: {settings.CompressionLevel}");
-            _log.Info("Compression backend: auto");
-        }
-
-        WarnLowDiskSpace(outputDir, inputBytes);
-
-        progress?.Report(new OperationProgress
-        {
-            Phase = "inner",
-            StatusText = "[1/2] Создание образа exFAT…",
-            TotalBytes = inputBytes,
-            Percent = 0
-        });
-
-        try
-        {
-            TryDeleteFile(innerExfat);
-            ScheduleStaleTempCleanup(outputDir);
-
-            await EnsureAmprIndexIfNeededAsync(settings.SourceFolder, cancellationToken)
-                .ConfigureAwait(false);
-
-            var innerSettings = new CompressionSettings
-            {
-                SourceFolder = settings.SourceFolder,
-                OutputPath = innerExfat,
-                Format = OutputFormat.Exfat,
-                Compress = false,
-                Verbose = settings.Verbose,
-                ProcessPriority = settings.ProcessPriority,
-                TempFolder = settings.TempFolder,
-                Version = settings.Version
-            };
-            var innerArgs = BuildExfatPackArguments(innerSettings);
-            _log.Info("MkPFS [1/2]: " + FormatArgs(innerArgs));
-            var innerResult = await RunPackProcessAsync(
-                    innerSettings, innerArgs, inputBytes, progress, sw, cancellationToken,
-                    rangeStart: 0, rangeEnd: settings.Compress ? 45 : 90, compressed: false)
-                .ConfigureAwait(false);
-            if (!innerResult.Succeeded || innerResult.Cancelled || innerResult.TimedOut)
-            {
-                return FinishPack(settings, innerResult, inputBytes, sw, failureLabel: "Упаковка");
-            }
-
-            if (!File.Exists(innerExfat))
-            {
-                return OperationResult.Fail(
-                    "Упаковка завершилась с ошибкой.",
-                    $"Внутренний exFAT-образ не создан: {innerExfat}");
-            }
-
-            TryDeleteFile(settings.OutputPath);
-
-            progress?.Report(new OperationProgress
-            {
-                Phase = "wrap",
-                StatusText = settings.Compress
-                    ? "[2/2] Сжатие обёртки PFSC (pack file)…"
-                    : "[2/2] Обёртка без сжатия (pack file)…",
-                TotalBytes = inputBytes
-            });
-
-            var wrapArgs = BuildFfpfscFromFileArguments(settings, innerExfat);
-            _log.Info("MkPFS [2/2]: " + FormatArgs(wrapArgs));
-            var wrapSettings = new CompressionSettings
-            {
-                SourceFolder = settings.SourceFolder,
-                OutputPath = settings.OutputPath,
-                Format = OutputFormat.Ffpfsc,
-                Compress = settings.Compress,
-                ProcessPriority = settings.ProcessPriority
-            };
-            var wrapResult = await RunPackProcessAsync(
-                    wrapSettings, wrapArgs, inputBytes, progress, sw, cancellationToken,
-                    rangeStart: settings.Compress ? 45 : 90, rangeEnd: 100, compressed: settings.Compress)
-                .ConfigureAwait(false);
-            return FinishPack(
-                settings,
-                wrapResult,
-                inputBytes,
-                sw,
-                failureLabel: "Упаковка",
-                doneText: settings.Compress ? null : "Упаковка завершена");
-        }
-        catch (Exception ex)
-        {
-            _log.Error(ex.Message);
-            return OperationResult.Fail("Упаковка завершилась с ошибкой.", ex.ToString());
-        }
-        finally
-        {
-            ScheduleLargeTempCleanup(innerExfat);
-        }
-    }
-
-    private void WarnLowDiskSpace(string outputDir, long inputBytes)
-    {
-        if (inputBytes <= 0)
-        {
-            return;
-        }
-
-        try
-        {
-            var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(outputDir))!).AvailableFreeSpace;
-            // Peak usage: uncompressed inner image (~source size) + the final compressed image.
-            var needed = inputBytes + (long)(inputBytes * 0.75);
-            if (free < needed)
-            {
-                _log.Warning(
-                    $"Мало места на диске: свободно {free / 1024 / 1024 / 1024.0:0.0} GB, " +
-                    $"двухпроходной упаковке нужно примерно {needed / 1024 / 1024 / 1024.0:0.0} GB " +
-                    "(несжатый образ + итоговый .ffpfsc одновременно).");
-            }
-        }
-        catch
-        {
-            // free-space probing is advisory only
-        }
-    }
-
-    private static void TryDeleteFile(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch
-        {
-            // best-effort cleanup
-        }
-    }
-
-    /// <summary>
-    /// Frees the canonical temp name immediately, then deletes the (possibly huge) file off the UI path.
-    /// </summary>
-    private void ScheduleLargeTempCleanup(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-        {
-            return;
-        }
-
-        string pending = path;
-        try
-        {
-            pending = path + ".deleting-" + Guid.NewGuid().ToString("N");
-            File.Move(path, pending);
-        }
-        catch
-        {
-            // If rename fails (locked / cross-volume), still attempt a background delete of the original.
-            pending = path;
-        }
-
-        _log.Info("[3/3] Удаление временного образа в фоне…");
-        DeleteLargeFileInBackground(pending, announceSuccess: true);
-    }
-
-    private void ScheduleStaleTempCleanup(string outputDir)
-    {
-        try
-        {
-            foreach (var leftover in Directory.EnumerateFiles(outputDir, "pfs_image.dat.deleting-*")
-                         .Concat(Directory.EnumerateFiles(outputDir, "*.inner.exfat.deleting-*")))
-            {
-                DeleteLargeFileInBackground(leftover, announceSuccess: false);
-            }
-        }
-        catch
-        {
-            // best-effort
-        }
-    }
-
-    private void DeleteLargeFileInBackground(string target, bool announceSuccess)
-    {
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                // Truncate first so free space returns sooner; Delete then finishes the directory entry.
-                try
-                {
-                    using var fs = new FileStream(
-                        target, FileMode.Open, FileAccess.Write, FileShare.None, 1, FileOptions.None);
-                    fs.SetLength(0);
-                }
-                catch
-                {
-                    // Fall through to Delete even if truncate is denied.
-                }
-
-                File.Delete(target);
-                if (announceSuccess)
-                {
-                    _log.Info("Временный образ удалён.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.Warning($"Не удалось удалить временный образ ({Path.GetFileName(target)}): {ex.Message}");
-            }
-        });
     }
 
     /// <summary>
@@ -530,8 +296,8 @@ public sealed class MkPfsService : IMkPfsService
     /// <summary>
     /// MkPFS prints each phase (scan, compress, write, exfat, …) as its own 0–100%. Mapping those
     /// raw values straight onto the bar makes it jump to 100% when an early phase finishes.
-    /// Each known phase owns a slice of <paramref name="rangeStart"/>–<paramref name="rangeEnd"/>;
-    /// unknown phases (e.g. <c>exfat</c> on pass 1) still map linearly into that range so the bar moves.
+    /// Slices are absolute ranges (not cumulative offsets of unseen phases) so a long
+    /// <c>compress</c> phase does not start the UI at ~30%.
     /// </summary>
     private static double? ScalePhasePercent(string? phase, double percent, double rangeStart, double rangeEnd, bool compressed)
     {
@@ -549,22 +315,30 @@ public sealed class MkPfsService : IMkPfsService
         var span = rangeEnd - rangeStart;
         var clamped = Math.Clamp(percent, 0, 100) / 100.0;
 
-        // Uncompressed / inner passes: pack exfat is a single dominant phase.
-        // Compressed wrap: classic scan → compress → write.
-        (string Name, double Weight)[] slices = compressed
-            ? [("scan", 0.04), ("compress", 0.72), ("write", 0.24)]
-            : [("scan", 0.04), ("exfat", 0.92), ("write", 0.04)];
+        // Absolute [start, end) fractions of the overall bar for each phase.
+        // Single-pass pack folder spends almost all wall time in "Compressing inner exFAT".
+        // Absolute ranges. Compress starts at 0 — single-pass often jumps straight here.
+        (string Name, double Start, double End)[] ranges = compressed
+            ? [
+                ("scan", 0.00, 0.03),
+                ("read", 0.03, 0.06),
+                ("exfat", 0.06, 0.10),
+                ("compress", 0.00, 0.88),
+                ("write", 0.88, 1.00)
+              ]
+            : [
+                ("scan", 0.00, 0.04),
+                ("exfat", 0.04, 0.96),
+                ("write", 0.96, 1.00)
+              ];
 
-        var cursor = 0.0;
-        foreach (var (name, weight) in slices)
+        foreach (var (name, start, end) in ranges)
         {
             if (phase.Contains(name, StringComparison.OrdinalIgnoreCase))
             {
-                var local = cursor + weight * clamped;
+                var local = start + (end - start) * clamped;
                 return rangeStart + span * local;
             }
-
-            cursor += weight;
         }
 
         // Fallback (any other MkPFS phase token): use the whole assigned range.
@@ -629,10 +403,13 @@ public sealed class MkPfsService : IMkPfsService
                 }
                 else if (rawPct is { } pct)
                 {
-                    parsed.Percent = ScalePhasePercent(parsed.Phase, pct, rangeStart, rangeEnd, phaseCompressed);
-                    if (parsed.Percent is { } scaledPct && inputBytes > 0)
+                    var clampedRaw = Math.Clamp(pct, 0, 100);
+                    parsed.Percent = ScalePhasePercent(parsed.Phase, clampedRaw, rangeStart, rangeEnd, phaseCompressed);
+                    // Byte counter follows the current MkPFS phase (0–100), not the scaled overall bar.
+                    // Otherwise compress@0% with a 30% bar offset showed ~30 GB instantly.
+                    if (inputBytes > 0)
                     {
-                        parsed.ProcessedBytes = (long)(inputBytes * (scaledPct / 100.0));
+                        parsed.ProcessedBytes = (long)(inputBytes * (clampedRaw / 100.0));
                     }
 
                     MkPfsProgressParser.AlignStatusWithPercent(parsed);
@@ -832,6 +609,8 @@ public sealed class MkPfsService : IMkPfsService
             return BuildExfatPackArguments(settings);
         }
 
+        // FFPFSC: MkPFS default = single-pass exFAT-wrapped .ffpfsc (PS5 FFPFSC PRO v1.3.0).
+        // FFPFS: --raw = direct PFS (console compatibility warning when compressed).
         var args = new List<string>(_prefixArgs)
         {
             "pack", "folder"
@@ -845,30 +624,52 @@ public sealed class MkPfsService : IMkPfsService
         args.Add("--version");
         args.Add(settings.Version);
 
-        args.Add("--cpu-count");
-        args.Add(settings.CpuCount.ToString());
+        // Explicit like PRO; MkPFS default is already 32.
+        args.Add("--inode-bits");
+        args.Add("32");
+
+        // Like AIO/PRO: let MkPFS auto-size the worker pool (min(16, cores-1)) unless the user
+        // explicitly picked a core count in settings.
+        if (settings.CpuCount > 0)
+        {
+            args.Add("--cpu-count");
+            args.Add(settings.CpuCount.ToString());
+        }
+
+        // Preflight: sce_sys/param.json with titleId + eboot.bin must exist (same as AIO 1.3.0).
+        args.Add("--require-game-files");
 
         if (settings.Compress)
         {
             args.Add("--compress");
             args.Add("--compression-level");
             args.Add(settings.CompressionLevel.ToString());
+
+            // Never leave this to `auto`: bundled MkPFS 1.0.0 picks ISA-L, whose blocks the PS5
+            // hardware inflater rejects (issue #132, reproduced on this very title). See the
+            // CompressionBackend doc comment for why stdlib zlib rather than zlib-ng.
+            args.Add("--compression-backend");
+            args.Add(CompressionBackend);
+
+            // MkPFS default (0): keep any block that shrinks → closer to ~35–37% savings.
+            // PRO uses 5 (stricter → larger files ~30%). Layout stays single-pass pack folder.
+            if (settings.Format == OutputFormat.Ffpfsc)
+            {
+                args.Add("--threshold-gain");
+                args.Add("0");
+            }
         }
         else
         {
             args.Add("--no-compress");
         }
 
+        // PRO only forwards block-size when it is not "auto".
         if (!string.Equals(settings.BlockSize, "auto", StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(settings.BlockSize))
         {
             args.Add("--block-size");
             args.Add(settings.BlockSize);
-        }
-        else
-        {
-            args.Add("--block-size");
-            args.Add("auto");
         }
 
         if (settings.SkipExecutableCompression)
@@ -877,9 +678,13 @@ public sealed class MkPfsService : IMkPfsService
         }
 
         var temp = settings.TempFolder ?? _settings.TempDirectory;
-        args.Add("--temp-folder");
-        args.Add(temp);
+        if (!string.IsNullOrWhiteSpace(temp))
+        {
+            args.Add("--temp-folder");
+            args.Add(temp);
+        }
 
+        // PRO leaves structure verify on by default and only adds --verify when requested.
         if (settings.Verify)
         {
             args.Add("--verify");
@@ -915,70 +720,6 @@ public sealed class MkPfsService : IMkPfsService
 
         args.Add("--overwrite");
         args.Add(Path.GetFullPath(settings.SourceFolder));
-        args.Add(Path.GetFullPath(settings.OutputPath));
-        return args;
-    }
-
-    /// <summary>Step 1 of the FFPFSC wrapper flow: uncompressed inner PFS image of the game folder.</summary>
-    private List<string> BuildUncompressedInnerPfsArguments(CompressionSettings settings)
-    {
-        // Matches MkPFS Option 5 / the working ps5_pack.sh recipe. --no-verify-structure is required
-        // with --skip-verification on MkPFS 1.0.x (otherwise it exits 1 after a successful write).
-        var args = new List<string>(_prefixArgs)
-        {
-            "pack", "folder",
-            "--raw",
-            "--no-compress",
-            "--no-adjust-output-file-extension",
-            "--skip-verification",
-            "--no-verify-structure",
-            "--version", "PS5",
-            "--inode-bits", "32"
-        };
-
-        args.Add(Path.GetFullPath(settings.SourceFolder));
-        args.Add(Path.GetFullPath(settings.OutputPath));
-        return args;
-    }
-
-    /// <summary>Step 2 of the FFPFSC wrapper flow: wrap/compress one image file into the container.</summary>
-    private List<string> BuildFfpfscFromFileArguments(CompressionSettings settings, string innerImagePath)
-    {
-        var args = new List<string>(_prefixArgs)
-        {
-            "pack", "file",
-            "--version", "PS5",
-            "--inode-bits", "32"
-        };
-
-        if (settings.Compress)
-        {
-            args.Add("--compress");
-            args.Add("--compression-backend");
-            args.Add("auto");
-            args.Add("--compression-level");
-            args.Add(settings.CompressionLevel.ToString());
-            args.Add("--cpu-count");
-            args.Add(settings.CpuCount.ToString());
-        }
-        else
-        {
-            args.Add("--no-compress");
-        }
-
-        // MkPFS rejects --verify together with --skip-verification, and --skip-verification
-        // together with the default --verify-structure.
-        if (settings.Verify)
-        {
-            args.Add("--verify");
-        }
-        else
-        {
-            args.Add("--skip-verification");
-            args.Add("--no-verify-structure");
-        }
-
-        args.Add(Path.GetFullPath(innerImagePath));
         args.Add(Path.GetFullPath(settings.OutputPath));
         return args;
     }

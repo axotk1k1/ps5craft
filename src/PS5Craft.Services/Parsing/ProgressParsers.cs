@@ -125,6 +125,12 @@ public static partial class MkPfsProgressParser
             return "сканирование";
         }
 
+        if (phase.Contains("read", StringComparison.OrdinalIgnoreCase) ||
+            phase.Contains("чтен", StringComparison.OrdinalIgnoreCase))
+        {
+            return "чтение";
+        }
+
         if (phase.Contains("exfat", StringComparison.OrdinalIgnoreCase))
         {
             return "exfat";

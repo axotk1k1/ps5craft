@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
@@ -101,7 +101,8 @@ public partial class MainViewModel : ObservableObject
         VerifyAfterPack = s.VerifyAfterCompression;
         ExtractCoverAndMetadata = true;
         CompressEnabled = true;
-        SkipExecutableCompression = true;
+        // Match PS5 FFPFSC PRO v1.3.0 (does not pass --skip-executable-compression).
+        SkipExecutableCompression = false;
         TempFolderDisplay = _settings.TempDirectory;
         MkPfsPathSetting = s.MkPfsPath ?? string.Empty;
         PythonPathSetting = s.PythonPath ?? string.Empty;
@@ -164,7 +165,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _formatWarning = string.Empty;
 
     [ObservableProperty] private string _selectedCpu = "Auto";
-    [ObservableProperty] private string _selectedCompressionLevel = "7";
+    [ObservableProperty] private string _selectedCompressionLevel = "9";
     [ObservableProperty] private string _selectedBlockSize = "Auto";
     [ObservableProperty] private string _selectedOutputFormat = "FFPFSC";
     [ObservableProperty] private string _selectedAmprVersion = AmprEmulator.DefaultVersion;
@@ -207,9 +208,9 @@ public partial class MainViewModel : ObservableObject
             : value.Equals("EXFAT", StringComparison.OrdinalIgnoreCase)
                 ? "EXFAT: сырой образ без PFSC-сжатия. Содержимое папки копируется как есть — если игра использует AMPR, fakelib/libSceAmpr.sprx остаётся в образе."
                 : value.Equals("FFPFSC", StringComparison.OrdinalIgnoreCase)
-                    ? "FFPFSC: двухпроходная сборка — сначала тот же exFAT, что уже запускается, затем PFSC-обёртка (pack file). Нужно место под оба файла на время сборки."
+                    ? "FFPFSC: один проход (pack folder → .ffpfsc), как PS5 FFPFSC PRO 1.3.0 — MkPFS сам собирает exFAT+PFSC без промежуточного .exfat."
                     : string.Empty;
-        SuggestPackOutput();
+        ApplyFormatToPackOutput();
     }
 
     partial void OnSelectedAmprVersionChanged(string value)
@@ -811,6 +812,11 @@ public partial class MainViewModel : ObservableObject
         {
             Game = await _metadata.ReadFromFolderAsync(folder);
             ApplyGameToUi(Game);
+            // Metadata arrives after the folder pick: upgrade the suggested name to <TitleID>-<Content>.
+            if (string.Equals(folder, PackSourceFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                SuggestPackOutput(force: false);
+            }
         }
         catch (Exception ex)
         {
@@ -1042,6 +1048,7 @@ public partial class MainViewModel : ObservableObject
                 ProgressActionLabel = phaseLabel switch
                 {
                     "exfat" => "exFAT:",
+                    "чтение" => "Чтение:",
                     "сжатие" => "Сжатие:",
                     "сканирование" => "Сканирование:",
                     "запись" => "Запись:",
@@ -1227,22 +1234,107 @@ public partial class MainViewModel : ObservableObject
         ExtractOutputFolder = Path.Combine(dir, name + "_Extracted");
     }
 
-    private void SuggestPackOutput()
+    /// <summary>Last path we auto-filled; if the user edited it, metadata refresh must not overwrite it.</summary>
+    private string? _lastSuggestedPackOutput;
+
+    /// <param name="force">Overwrite even a user-edited path (new source folder picked).</param>
+    private void SuggestPackOutput(bool force = true)
     {
         if (string.IsNullOrWhiteSpace(PackSourceFolder))
         {
             return;
         }
 
-        var parent = Directory.GetParent(PackSourceFolder)?.FullName ?? PackSourceFolder;
-        var name = new DirectoryInfo(PackSourceFolder).Name.Replace("_Extracted", "", StringComparison.OrdinalIgnoreCase);
-        var ext = UiToFormat(SelectedOutputFormat) switch
+        // Metadata refresh: only touch the field if it is empty or still holds our previous suggestion.
+        if (!force &&
+            !string.IsNullOrWhiteSpace(PackOutputPath) &&
+            !string.Equals(PackOutputPath, _lastSuggestedPackOutput, StringComparison.OrdinalIgnoreCase))
         {
-            OutputFormat.Ffpfs => ".ffpfs",
-            OutputFormat.Exfat => ".exfat",
-            _ => ".ffpfsc"
-        };
-        PackOutputPath = Path.Combine(parent, name + ext);
+            return;
+        }
+
+        var parent = Directory.GetParent(PackSourceFolder)?.FullName ?? PackSourceFolder;
+        var name = BuildImageBaseName(Game, PackSourceFolder);
+        _lastSuggestedPackOutput = Path.Combine(parent, name + CurrentImageExtension());
+        PackOutputPath = _lastSuggestedPackOutput;
+    }
+
+    /// <summary>Format changed: keep the user's file name, only swap the extension.</summary>
+    private void ApplyFormatToPackOutput()
+    {
+        if (string.IsNullOrWhiteSpace(PackOutputPath))
+        {
+            SuggestPackOutput();
+            return;
+        }
+
+        var updated = Path.ChangeExtension(PackOutputPath, CurrentImageExtension());
+        if (string.Equals(PackOutputPath, _lastSuggestedPackOutput, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastSuggestedPackOutput = updated;
+        }
+
+        PackOutputPath = updated;
+    }
+
+    private string CurrentImageExtension() => UiToFormat(SelectedOutputFormat) switch
+    {
+        OutputFormat.Ffpfs => ".ffpfs",
+        OutputFormat.Exfat => ".exfat",
+        _ => ".ffpfsc"
+    };
+
+    /// <summary>
+    /// Image base name as <c>&lt;TitleID&gt;-&lt;ContentLabel&gt;</c> (e.g. <c>PPSA11386-007FIRSTLIGHT000</c>),
+    /// derived from the Content ID <c>EP3969-PPSA11386_00-007FIRSTLIGHT000</c>. A bare Title ID as file name
+    /// collides with the installed title / other mounts in ShadowMountPlus, so it is avoided.
+    /// Falls back to the folder name while metadata is not loaded yet.
+    /// </summary>
+    internal static string BuildImageBaseName(GameInfo? game, string sourceFolder)
+    {
+        var folderName = new DirectoryInfo(sourceFolder).Name
+            .Replace("_Extracted", "", StringComparison.OrdinalIgnoreCase);
+
+        var titleId = Clean(game?.TitleId);
+        var contentId = game?.ContentId;
+        if (titleId is null || string.Equals(titleId, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return folderName;
+        }
+
+        string? label = null;
+        if (!string.IsNullOrWhiteSpace(contentId) &&
+            !string.Equals(contentId, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            var dash = contentId.LastIndexOf('-');
+            if (dash >= 0 && dash < contentId.Length - 1)
+            {
+                label = Clean(contentId[(dash + 1)..]);
+            }
+        }
+
+        // No content label: keep the folder name if it already carries a suffix, else add a safe one.
+        if (label is null)
+        {
+            return folderName.StartsWith(titleId, StringComparison.OrdinalIgnoreCase) &&
+                   folderName.Length > titleId.Length
+                ? folderName
+                : titleId + "-app0";
+        }
+
+        return titleId + "-" + label;
+
+        static string? Clean(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s))
+            {
+                return null;
+            }
+
+            var invalid = Path.GetInvalidFileNameChars();
+            var chars = s.Trim().Where(c => Array.IndexOf(invalid, c) < 0 && c != ' ').ToArray();
+            return chars.Length == 0 ? null : new string(chars);
+        }
     }
 
     private static string FormatToUi(OutputFormat format) => format switch

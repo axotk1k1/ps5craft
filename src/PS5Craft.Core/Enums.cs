@@ -12,7 +12,7 @@ public enum OperationState
 
 public enum OutputFormat
 {
-    /// <summary>Default MkPFS pack folder → exFAT-wrapped PFSC (.ffpfsc).</summary>
+    /// <summary>MkPFS pack folder → exFAT-wrapped PFSC (.ffpfsc), single-pass (PRO 1.3.0).</summary>
     Ffpfsc,
 
     /// <summary>MkPFS pack folder --raw → direct PFS (.ffpfs). Compatibility warnings apply.</summary>

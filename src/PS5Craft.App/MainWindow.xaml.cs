@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using PS5Craft.Core;
 using PS5Craft.ViewModels;
 
 namespace PS5Craft.App;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
+        Title = $"PS5Craft {AppVersion.DisplayShort} — PS5 Game Package Tool";
 
         ContentGrid.SizeChanged += (_, _) => UpdateHeightBudget();
         WorkflowPanel.SizeChanged += (_, _) => UpdateHeightBudget();

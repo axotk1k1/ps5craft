@@ -132,7 +132,7 @@ dotnet build PS5Craft.slnx -c Release
 # Рекомендуемый slim-релиз (нужен .NET 10 Desktop Runtime у пользователя):
 .\scripts\publish-release.ps1
 # с явной версией (как в GitHub Actions):
-.\scripts\publish-release.ps1 -Version 1.3.0
+.\scripts\publish-release.ps1 -Version 1.4.0
 # → publish\win-x64\  и  PS5Craft-win-x64.zip
 ```
 
@@ -145,8 +145,8 @@ dotnet build PS5Craft.slnx -c Release
 Новый GitHub Release (версия в теге должна быть **выше** текущей у пользователей):
 
 ```powershell
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 После push тега GitHub Actions соберёт `PS5Craft-win-x64.zip` с той же версией внутри (для автообновления) и `.sha256`.

@@ -103,10 +103,10 @@ public sealed class CompressionSettings
     public OutputFormat Format { get; set; } = OutputFormat.Ffpfsc;
     public string Version { get; set; } = "PS5";
     public int CpuCount { get; set; } // 0 = auto
-    public int CompressionLevel { get; set; } = 7;
+    public int CompressionLevel { get; set; } = 9;
     public string BlockSize { get; set; } = "auto";
     public bool Compress { get; set; } = true;
-    public bool SkipExecutableCompression { get; set; } = true;
+    public bool SkipExecutableCompression { get; set; }
     public bool Verify { get; set; } = true;
     public bool Verbose { get; set; }
     public bool DryRun { get; set; }
@@ -164,7 +164,7 @@ public sealed class AppSettings
     public string? FpkgCliPath { get; set; }
     public int CpuCount { get; set; } // 0 = auto
     public ProcessPriorityChoice ProcessPriority { get; set; } = ProcessPriorityChoice.BelowNormal;
-    public int CompressionLevel { get; set; } = 7;
+    public int CompressionLevel { get; set; } = 9;
     public string BlockSize { get; set; } = "auto";
     public OutputFormat DefaultOutputFormat { get; set; } = OutputFormat.Ffpfsc;
     public string? DefaultOutputFolder { get; set; }
