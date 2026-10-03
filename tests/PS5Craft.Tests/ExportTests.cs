@@ -231,8 +231,11 @@ public class NetworkDiscoveryTests
             await File.WriteAllBytesAsync(file, payload);
             var transfer = new Ps5TransferService(new NullLog(), new Ps5NetworkDiscoveryService(new NullLog()));
             var reports = new List<TransferProgress>();
+            // Progress<T> can post to a SynchronizationContext asynchronously; on CI that race
+            // leaves `reports` empty after a successful transfer. Collect synchronously.
+            var progress = new SyncProgress<TransferProgress>(reports.Add);
             var result = await transfer.SendFileAsync("127.0.0.1", server.Port, file, "payload.bin",
-                progress: new Progress<TransferProgress>(reports.Add));
+                progress: progress);
             Assert.True(result.Success);
             Assert.Equal(payload, server.Received);
             Assert.NotEmpty(reports);
@@ -385,4 +388,10 @@ internal sealed class MockBannerServer : IAsyncDisposable
         _cts.Dispose();
         return ValueTask.CompletedTask;
     }
+}
+
+/// <summary>IProgress that invokes the handler on the calling thread (no SynchronizationContext hop).</summary>
+internal sealed class SyncProgress<T>(Action<T> handler) : IProgress<T>
+{
+    public void Report(T value) => handler(value);
 }
